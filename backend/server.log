@@ -1,0 +1,25 @@
+nohup: ignoring input
+/home/raj/app/backend/main.py:249: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+/home/raj/app/backend/main.py:256: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("shutdown")
+INFO:     Started server process [312914]
+INFO:     Waiting for application startup.
+INFO:__main__:Starting bllue API...
+INFO:__main__:Database tables initialized
+INFO:__main__:Database already has 30 date ideas
+INFO:__main__:bllue API started successfully!
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:35126 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45610 - "POST /api/personality/submit HTTP/1.1" 200 OK

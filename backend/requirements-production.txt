@@ -1,0 +1,42 @@
+# FastAPI Core
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# PostgreSQL / Neon
+asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.31
+alembic==1.13.2
+
+# Authentication
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+bcrypt==4.2.0
+
+# Firebase Admin SDK
+firebase-admin==6.5.0
+
+# HTTP Client
+httpx==0.27.0
+aiohttp==3.10.0
+
+# Validation & Utils
+pydantic[email]==2.8.0
+pydantic-settings==2.3.0
+phonenumbers==8.13.40
+
+# Date/Time
+python-dateutil==2.9.0
+
+# Twilio for SMS OTP
+twilio==9.0.0
+
+# OpenAI for AI suggestions
+openai==1.35.0
+
+# CORS
+starlette==0.38.0
+
+# Production Server
+gunicorn==22.0.0

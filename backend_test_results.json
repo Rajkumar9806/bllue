@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "total_tests": 22,
+    "passed": 21,
+    "failed": 1,
+    "success_rate": 95.45454545454545,
+    "duration": 39.083568811416626,
+    "timestamp": "2025-11-12T15:33:27.286204"
+  },
+  "detailed_results": [
+    {
+      "test": "Send OTP",
+      "success": true,
+      "details": "OTP sent successfully: 496855",
+      "timestamp": "2025-11-12T15:32:48.271839"
+    },
+    {
+      "test": "Verify OTP",
+      "success": true,
+      "details": "OTP verified, new_user: False, user_id: 10da2773-c335-4a0c-ad2d-194fc09e8fbe",
+      "timestamp": "2025-11-12T15:32:48.282159"
+    },
+    {
+      "test": "Get User Profile",
+      "success": true,
+      "details": "Profile retrieved for user: +1234567890",
+      "timestamp": "2025-11-12T15:32:48.290414"
+    },
+    {
+      "test": "Update User Profile",
+      "success": true,
+      "details": "Profile updated successfully",
+      "timestamp": "2025-11-12T15:32:48.341013"
+    },
+    {
+      "test": "Submit Personality Questionnaire",
+      "success": true,
+      "details": "Personality data saved successfully",
+      "timestamp": "2025-11-12T15:32:48.348460"
+    },
+    {
+      "test": "Generate Personalized Date Ideas",
+      "success": true,
+      "details": "Generated 5 personalized ideas",
+      "timestamp": "2025-11-12T15:33:00.262921"
+    },
+    {
+      "test": "Date Ideas Structure Validation",
+      "success": true,
+      "details": "All required fields present",
+      "timestamp": "2025-11-12T15:33:00.262944"
+    },
+    {
+      "test": "Get Trending Date Ideas",
+      "success": true,
+      "details": "Retrieved 8 trending ideas",
+      "timestamp": "2025-11-12T15:33:20.032352"
+    },
+    {
+      "test": "Add to Wishlist",
+      "success": true,
+      "details": "Added to wishlist with ID: a34ecf72-99b4-4883-ae9d-e06929fe27d7",
+      "timestamp": "2025-11-12T15:33:20.045332"
+    },
+    {
+      "test": "Get User Wishlist",
+      "success": true,
+      "details": "Retrieved wishlist with 1 items",
+      "timestamp": "2025-11-12T15:33:20.055402"
+    },
+    {
+      "test": "Remove from Wishlist",
+      "success": true,
+      "details": "Item removed successfully",
+      "timestamp": "2025-11-12T15:33:20.102779"
+    },
+    {
+      "test": "Create Second User",
+      "success": true,
+      "details": "Second user created: f37ef543-4c93-43ed-8f11-de7b3880e8c4",
+      "timestamp": "2025-11-12T15:33:20.129552"
+    },
+    {
+      "test": "Create Connection Invite",
+      "success": true,
+      "details": "Invite code created: 51D6FC44",
+      "timestamp": "2025-11-12T15:33:20.187953"
+    },
+    {
+      "test": "Accept Connection Invite",
+      "success": false,
+      "details": "Failed to accept invite: {'detail': [{'type': 'missing', 'loc': ['query', 'invite_code'], 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.12/v/missing'}, {'type': 'missing', 'loc': ['query', 'user_id'], 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.12/v/missing'}]}",
+      "timestamp": "2025-11-12T15:33:20.196584"
+    },
+    {
+      "test": "Get User Connections",
+      "success": true,
+      "details": "Retrieved 0 connections",
+      "timestamp": "2025-11-12T15:33:20.246622"
+    },
+    {
+      "test": "Get Partner Wishlist",
+      "success": true,
+      "details": "Retrieved 0 partner wishlists",
+      "timestamp": "2025-11-12T15:33:20.255678"
+    },
+    {
+      "test": "Add Occasion",
+      "success": true,
+      "details": "Occasion added with ID: 068906dc-e945-4ecb-809f-92347ba94501",
+      "timestamp": "2025-11-12T15:33:20.264195"
+    },
+    {
+      "test": "Get All Occasions",
+      "success": true,
+      "details": "Retrieved 1 occasions",
+      "timestamp": "2025-11-12T15:33:20.271590"
+    },
+    {
+      "test": "Get Upcoming Occasions",
+      "success": true,
+      "details": "Retrieved 1 upcoming occasions",
+      "timestamp": "2025-11-12T15:33:20.279425"
+    },
+    {
+      "test": "Delete Occasion",
+      "success": true,
+      "details": "Occasion deleted successfully",
+      "timestamp": "2025-11-12T15:33:20.328478"
+    },
+    {
+      "test": "Get Gift Suggestions",
+      "success": true,
+      "details": "Generated 5 gift suggestions",
+      "timestamp": "2025-11-12T15:33:27.275548"
+    },
+    {
+      "test": "Track User Behavior",
+      "success": true,
+      "details": "Behavior tracked successfully",
+      "timestamp": "2025-11-12T15:33:27.286023"
+    }
+  ]
+}
