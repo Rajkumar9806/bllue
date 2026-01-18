@@ -13,6 +13,9 @@ import os
 import uuid
 import random
 import logging
+import httpx
+import json
+import re
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -30,6 +33,15 @@ else:
 JWT_SECRET = os.getenv("JWT_SECRET", "bllue_jwt_secret_key_2026_production_v1")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
+
+# Gemini API Configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+# Social Media API Keys (for trending content)
+INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
+FACEBOOK_ACCESS_TOKEN = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
+TIKTOK_API_KEY = os.getenv("TIKTOK_API_KEY", "")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -286,6 +298,167 @@ async def get_current_user(authorization: str = Header(None)):
 def generate_otp() -> str:
     return str(random.randint(100000, 999999))
 
+# ==================== GEMINI AI ====================
+
+async def generate_ai_date_ideas(personality: Dict[str, Any], count: int = 5) -> List[Dict[str, Any]]:
+    """Generate personalized date ideas using Gemini AI"""
+    if not GEMINI_API_KEY:
+        logger.warning("Gemini API key not configured, returning empty list")
+        return []
+    
+    prompt = f"""You are a creative date night planner. Based on the user's personality profile, generate {count} unique and personalized date night ideas.
+
+User Profile:
+- Personality Type: {personality.get('personality_type') or 'romantic'}
+- Interests: {', '.join(personality.get('interests') or ['adventure', 'food'])}
+- Budget Preference: {personality.get('budget_range') or 'moderate'}
+- Location Preference: {personality.get('indoor_outdoor_preference') or 'both'}
+- Favorite Activities: {', '.join(personality.get('favorite_activities') or [])}
+
+Generate {count} creative, unique date ideas that match their personality. Include trendy ideas from social media like Instagram, TikTok, and Facebook dating trends.
+
+Return ONLY a valid JSON array with this exact structure (no markdown, no explanation):
+[
+  {{
+    "title": "Date idea title",
+    "description": "Detailed 2-3 sentence description",
+    "category": "romantic|adventure|foodie|creative|relaxing|fun|cultural|active",
+    "budget": "low|medium|high",
+    "duration": "duration estimate",
+    "location_type": "indoor|outdoor|both",
+    "tags": ["tag1", "tag2", "tag3"],
+    "source": "ai-generated",
+    "trending_on": ["instagram", "tiktok"] or []
+  }}
+]"""
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.9,
+                        "topP": 0.95,
+                        "maxOutputTokens": 2048
+                    }
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+                return []
+            
+            data = response.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
+            
+            # Clean up the response - remove markdown code blocks if present
+            text = text.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+            
+            ideas = json.loads(text)
+            
+            # Add UUIDs and timestamps
+            for idea in ideas:
+                idea["id"] = str(uuid.uuid4())
+                idea["image_url"] = get_image_for_category(idea.get("category", "romantic"))
+                idea["is_trending"] = bool(idea.get("trending_on"))
+                idea["created_at"] = datetime.utcnow().isoformat()
+            
+            return ideas
+            
+    except Exception as e:
+        logger.error(f"Error generating AI date ideas: {e}")
+        return []
+
+def get_image_for_category(category: str) -> str:
+    """Get Unsplash image URL for category"""
+    images = {
+        "romantic": "https://images.unsplash.com/photo-1529636798458-92182e662485?w=800",
+        "adventure": "https://images.unsplash.com/photo-1551632811-561732d1e306?w=800",
+        "foodie": "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800",
+        "creative": "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=800",
+        "relaxing": "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800",
+        "fun": "https://images.unsplash.com/photo-1611371805429-8b5c1b2c34ba?w=800",
+        "cultural": "https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=800",
+        "active": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800",
+    }
+    return images.get(category, "https://images.unsplash.com/photo-1529636798458-92182e662485?w=800")
+
+async def fetch_trending_date_ideas() -> List[Dict[str, Any]]:
+    """Fetch trending date ideas from social media (simulated with AI)"""
+    if not GEMINI_API_KEY:
+        return []
+    
+    prompt = """Generate 5 trending date night ideas that are currently popular on Instagram, TikTok, and Facebook in 2026. Focus on viral date ideas and relationship trends.
+
+Return ONLY a valid JSON array with this structure (no markdown):
+[
+  {
+    "title": "Trending date idea",
+    "description": "Why it's trending and how to do it",
+    "category": "romantic|adventure|foodie|creative|relaxing|fun",
+    "budget": "low|medium|high",
+    "duration": "duration",
+    "location_type": "indoor|outdoor|both",
+    "tags": ["trending", "viral", "tiktok"],
+    "source": "social-media",
+    "trending_on": ["instagram", "tiktok", "facebook"],
+    "trend_score": 95
+  }
+]"""
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.95,
+                        "topP": 0.95,
+                        "maxOutputTokens": 2048
+                    }
+                }
+            )
+            
+            if response.status_code != 200:
+                return []
+            
+            data = response.json()
+            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
+            
+            # Clean markdown
+            text = text.strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+            
+            ideas = json.loads(text)
+            
+            for idea in ideas:
+                idea["id"] = str(uuid.uuid4())
+                idea["image_url"] = get_image_for_category(idea.get("category", "fun"))
+                idea["is_trending"] = True
+                idea["created_at"] = datetime.utcnow().isoformat()
+            
+            return ideas
+            
+    except Exception as e:
+        logger.error(f"Error fetching trending ideas: {e}")
+        return []
+
 # ==================== ROUTES ====================
 
 @app.get("/")
@@ -358,6 +531,9 @@ async def verify_otp(request: OTPVerify):
         else:
             user_id = str(user['id'])
         
+        # Get user data for response
+        user_data = await conn.fetchrow("SELECT * FROM users WHERE id = $1", uuid.UUID(user_id))
+        
         # Generate token
         token = create_access_token(user_id, request.phone_number)
         
@@ -365,6 +541,12 @@ async def verify_otp(request: OTPVerify):
             "success": True,
             "token": token,
             "user_id": user_id,
+            "user": {
+                "id": user_id,
+                "phone_number": request.phone_number,
+                "name": user_data['name'] if user_data else None,
+                "email": user_data['email'] if user_data else None
+            },
             "is_new_user": is_new_user
         }
 
@@ -392,15 +574,25 @@ async def save_questionnaire(data: QuestionnaireData, user: TokenData = Depends(
     return {"success": True, "message": "Questionnaire saved"}
 
 @app.post("/api/personality/submit")
-async def submit_personality(data: PersonalitySubmit):
+async def submit_personality(data: PersonalitySubmit, authorization: str = Header(None)):
     """Save user personality and preferences from onboarding"""
     pool = await get_db()
     
+    # Get user_id from auth header if not provided in body
+    user_id = data.user_id
+    if not user_id and authorization and authorization.startswith("Bearer "):
+        try:
+            token = authorization.replace("Bearer ", "")
+            token_data = verify_token(token)
+            user_id = token_data.user_id
+        except:
+            pass
+    
     async with pool.acquire() as conn:
         # Check if user_id was provided
-        if data.user_id:
+        if user_id:
             try:
-                user_uuid = uuid.UUID(data.user_id)
+                user_uuid = uuid.UUID(user_id)
                 # Update existing user
                 await conn.execute('''
                     UPDATE users SET 
@@ -472,21 +664,110 @@ async def get_date_ideas(
     return {"ideas": ideas, "total": len(ideas)}
 
 @app.get("/api/date-ideas/discover")
-async def discover_date_ideas():
-    """Get curated date ideas for discover page"""
+async def discover_date_ideas(authorization: str = Header(None)):
+    """Get AI-powered personalized date ideas for discover page"""
     pool = await get_db()
     
+    # Get user personality if authenticated
+    personality = {}
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            token = authorization.replace("Bearer ", "")
+            user_data = verify_token(token)
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT personality_type, interests, budget_range, indoor_outdoor_preference, favorite_activities FROM users WHERE id = $1",
+                    uuid.UUID(user_data.user_id)
+                )
+                if row:
+                    personality = dict(row)
+        except:
+            pass
+    
+    # Get AI-generated personalized ideas if we have personality data and API key
+    ai_ideas = []
+    if personality and GEMINI_API_KEY:
+        ai_ideas = await generate_ai_date_ideas(personality, count=5)
+    
+    # Get database ideas
     async with pool.acquire() as conn:
         rows = await conn.fetch('''
             SELECT * FROM date_ideas 
             ORDER BY RANDOM() 
             LIMIT 10
         ''')
-        ideas = [dict(row) for row in rows]
-        for idea in ideas:
+        db_ideas = [dict(row) for row in rows]
+        for idea in db_ideas:
             idea['id'] = str(idea['id'])
+            idea['source'] = 'curated'
     
-    return {"ideas": ideas}
+    # Combine AI ideas with database ideas
+    all_ideas = ai_ideas + db_ideas
+    random.shuffle(all_ideas)
+    
+    return {"ideas": all_ideas[:15], "ai_powered": len(ai_ideas) > 0}
+
+@app.get("/api/date-ideas/ai-personalized")
+async def get_ai_personalized_ideas(user: TokenData = Depends(get_current_user)):
+    """Get AI-generated personalized date ideas based on user personality"""
+    pool = await get_db()
+    
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT personality_type, interests, budget_range, indoor_outdoor_preference, favorite_activities FROM users WHERE id = $1",
+            uuid.UUID(user.user_id)
+        )
+        
+        if not row or not row['personality_type']:
+            # Return fallback ideas if no personality data
+            rows = await conn.fetch("SELECT * FROM date_ideas ORDER BY RANDOM() LIMIT 10")
+            ideas = [dict(r) for r in rows]
+            for idea in ideas:
+                idea['id'] = str(idea['id'])
+                idea['source'] = 'curated'
+            return {"ideas": ideas, "personalized": False, "ai_powered": False, "message": "Complete your profile for personalized AI recommendations"}
+        
+        personality = dict(row)
+    
+    # Generate AI ideas
+    ideas = await generate_ai_date_ideas(personality, count=10)
+    
+    if not ideas:
+        # Fallback to database ideas if AI fails
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM date_ideas ORDER BY RANDOM() LIMIT 10")
+            ideas = [dict(row) for row in rows]
+            for idea in ideas:
+                idea['id'] = str(idea['id'])
+    
+    return {"ideas": ideas, "personalized": True, "ai_powered": len(ideas) > 0}
+
+@app.get("/api/date-ideas/social-trending")
+async def get_social_trending_ideas():
+    """Get trending date ideas from social media (Instagram, TikTok, Facebook)"""
+    # Get AI-generated trending ideas
+    trending = await fetch_trending_date_ideas()
+    
+    if not trending:
+        # Fallback to database trending
+        pool = await get_db()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('''
+                SELECT * FROM date_ideas 
+                WHERE is_trending = TRUE 
+                ORDER BY RANDOM() 
+                LIMIT 5
+            ''')
+            trending = [dict(row) for row in rows]
+            for idea in trending:
+                idea['id'] = str(idea['id'])
+                idea['source'] = 'curated'
+    
+    return {
+        "ideas": trending,
+        "sources": ["instagram", "tiktok", "facebook"],
+        "last_updated": datetime.utcnow().isoformat()
+    }
 
 @app.get("/api/date-ideas/trending")
 async def get_trending_ideas():
@@ -541,6 +822,23 @@ async def get_wishlist(user: TokenData = Depends(get_current_user)):
             idea['id'] = str(idea['id'])
     
     return {"ideas": ideas, "total": len(ideas)}
+
+@app.post("/api/wishlist/add")
+async def add_to_wishlist_legacy(request: WishlistAdd, user: TokenData = Depends(get_current_user)):
+    """Add idea to wishlist (legacy endpoint for frontend compatibility)"""
+    pool = await get_db()
+    
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute('''
+                INSERT INTO wishlist (user_id, date_idea_id)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id, date_idea_id) DO NOTHING
+            ''', uuid.UUID(user.user_id), uuid.UUID(request.date_idea_id))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    
+    return {"success": True, "message": "Added to wishlist"}
 
 @app.post("/api/wishlist/{idea_id}")
 async def add_to_wishlist(idea_id: str, user: TokenData = Depends(get_current_user)):
