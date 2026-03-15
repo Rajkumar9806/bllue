@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bllue Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #1B4332;
+            --primary-light: #2D6A4F;
+            --accent: #E04060;
+            --bg: #FAFAF7;
+        }
+        body { background: var(--bg); }
+        .sidebar { background: var(--primary); }
+        .sidebar-item:hover, .sidebar-item.active { background: var(--primary-light); }
+        .btn-primary { background: var(--primary); }
+        .btn-primary:hover { background: var(--primary-light); }
+        .btn-accent { background: var(--accent); }
+        .badge-pending { background: #FEF3C7; color: #92400E; }
+        .badge-approved { background: #D1FAE5; color: #065F46; }
+        .badge-rejected { background: #FEE2E2; color: #991B1B; }
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .tab-active { border-bottom: 3px solid var(--primary); color: var(--primary); }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 text-white flex flex-col">
+            <div class="p-6 border-b border-white/20">
+                <h1 class="text-2xl font-bold">bllue</h1>
+                <p class="text-sm text-white/70">Admin Dashboard</p>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <a href="#" onclick="showSection('overview')" class="sidebar-item active flex items-center gap-3 px-4 py-3 rounded-lg" data-section="overview">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    Overview
+                </a>
+                <a href="#" onclick="showSection('ideas')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-section="ideas">
+                    <i data-lucide="lightbulb" class="w-5 h-5"></i>
+                    Date Ideas
+                </a>
+                <a href="#" onclick="showSection('review')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-section="review">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    Review Queue
+                </a>
+                <a href="#" onclick="showSection('events')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-section="events">
+                    <i data-lucide="calendar" class="w-5 h-5"></i>
+                    Events
+                </a>
+                <a href="#" onclick="showSection('partners')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-section="partners">
+                    <i data-lucide="store" class="w-5 h-5"></i>
+                    Retail Partners
+                </a>
+                <a href="#" onclick="showSection('seeder')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-section="seeder">
+                    <i data-lucide="database" class="w-5 h-5"></i>
+                    Content Seeder
+                </a>
+                <a href="#" onclick="showSection('users')" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-section="users">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                    Users
+                </a>
+            </nav>
+            <div class="p-4 border-t border-white/20">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                        <i data-lucide="user" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <p class="font-medium">Admin</p>
+                        <p class="text-xs text-white/70">Super Admin</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <!-- Header -->
+            <header class="bg-white shadow-sm px-8 py-4 flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-gray-800" id="page-title">Overview</h2>
+                <div class="flex items-center gap-4">
+                    <button onclick="refreshData()" class="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        Refresh
+                    </button>
+                    <span class="text-sm text-gray-500" id="last-updated">Last updated: --</span>
+                </div>
+            </header>
+
+            <!-- Content Sections -->
+            <main class="p-8">
+                <!-- Overview Section -->
+                <section id="section-overview" class="section">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="stat-card bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-500 text-sm">Total Ideas</p>
+                                    <p class="text-3xl font-bold mt-1" id="stat-ideas">--</p>
+                                </div>
+                                <div class="p-3 bg-green-100 rounded-lg">
+                                    <i data-lucide="lightbulb" class="w-6 h-6 text-green-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-500 text-sm">Pending Review</p>
+                                    <p class="text-3xl font-bold mt-1" id="stat-pending">--</p>
+                                </div>
+                                <div class="p-3 bg-yellow-100 rounded-lg">
+                                    <i data-lucide="clock" class="w-6 h-6 text-yellow-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-500 text-sm">Active Events</p>
+                                    <p class="text-3xl font-bold mt-1" id="stat-events">--</p>
+                                </div>
+                                <div class="p-3 bg-blue-100 rounded-lg">
+                                    <i data-lucide="calendar" class="w-6 h-6 text-blue-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card bg-white rounded-xl shadow p-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-500 text-sm">Retail Partners</p>
+                                    <p class="text-3xl font-bold mt-1" id="stat-partners">--</p>
+                                </div>
+                                <div class="p-3 bg-purple-100 rounded-lg">
+                                    <i data-lucide="store" class="w-6 h-6 text-purple-600"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="font-semibold mb-4">Ideas by Category</h3>
+                            <div id="category-chart" class="space-y-3"></div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="font-semibold mb-4">Quick Actions</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <button onclick="generateAIIdeas()" class="btn-primary text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2">
+                                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                                    Generate AI Ideas
+                                </button>
+                                <button onclick="scrapeEvents()" class="btn-primary text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2">
+                                    <i data-lucide="download" class="w-5 h-5"></i>
+                                    Scrape Events
+                                </button>
+                                <button onclick="showSection('review')" class="border border-gray-300 px-4 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50">
+                                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                                    Review Queue
+                                </button>
+                                <button onclick="installAllPacks()" class="border border-gray-300 px-4 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50">
+                                    <i data-lucide="package" class="w-5 h-5"></i>
+                                    Install All Packs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Ideas Section -->
+                <section id="section-ideas" class="section hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex gap-4">
+                            <select id="filter-category" onchange="loadIdeas()" class="border rounded-lg px-4 py-2">
+                                <option value="">All Categories</option>
+                                <option value="romantic">Romantic</option>
+                                <option value="adventure">Adventure</option>
+                                <option value="foodie">Foodie</option>
+                                <option value="cultural">Cultural</option>
+                                <option value="relaxing">Relaxing</option>
+                                <option value="fun">Fun</option>
+                            </select>
+                        </div>
+                        <button onclick="showAddIdeaModal()" class="btn-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            Add Idea
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-xl shadow overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Budget</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ideas-table" class="divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Review Queue Section -->
+                <section id="section-review" class="section hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex gap-2">
+                            <button onclick="loadReviewQueue('pending')" class="tab-btn px-4 py-2 border-b-2 border-transparent hover:border-gray-300" data-status="pending">Pending</button>
+                            <button onclick="loadReviewQueue('approved')" class="tab-btn px-4 py-2 border-b-2 border-transparent hover:border-gray-300" data-status="approved">Approved</button>
+                            <button onclick="loadReviewQueue('rejected')" class="tab-btn px-4 py-2 border-b-2 border-transparent hover:border-gray-300" data-status="rejected">Rejected</button>
+                        </div>
+                        <button onclick="generateForReview()" class="btn-accent text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            Generate Ideas for Review
+                        </button>
+                    </div>
+                    <div id="review-queue" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </section>
+
+                <!-- Events Section -->
+                <section id="section-events" class="section hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-semibold">Live Events</h3>
+                        <div class="flex gap-2">
+                            <button onclick="scrapeTicketmaster()" class="border px-4 py-2 rounded-lg hover:bg-gray-50">Ticketmaster</button>
+                            <button onclick="scrapeSocialTrends()" class="border px-4 py-2 rounded-lg hover:bg-gray-50">Social Trends</button>
+                            <button onclick="scrapeSeasonal()" class="border px-4 py-2 rounded-lg hover:bg-gray-50">Seasonal</button>
+                            <button onclick="scrapeEvents()" class="btn-primary text-white px-4 py-2 rounded-lg">Scrape All</button>
+                        </div>
+                    </div>
+                    <div id="events-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </section>
+
+                <!-- Retail Partners Section -->
+                <section id="section-partners" class="section hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-semibold">Retail Partners</h3>
+                        <button onclick="showAddPartnerModal()" class="btn-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            Add Partner
+                        </button>
+                    </div>
+                    <div id="partners-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                    
+                    <h3 class="text-lg font-semibold mt-8 mb-4">Image Review Queue</h3>
+                    <div id="image-review-queue" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </section>
+
+                <!-- Seeder Section -->
+                <section id="section-seeder" class="section hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="font-semibold mb-4">Content Packs</h3>
+                            <div id="packs-list" class="space-y-3"></div>
+                            <button onclick="installAllPacks()" class="mt-4 w-full btn-primary text-white px-4 py-2 rounded-lg">Install All Packs</button>
+                        </div>
+                        <div class="bg-white rounded-xl shadow p-6">
+                            <h3 class="font-semibold mb-4">Content Gaps</h3>
+                            <div id="gaps-list" class="space-y-3"></div>
+                            <button onclick="fillGaps()" class="mt-4 w-full btn-accent text-white px-4 py-2 rounded-lg">Auto-Fill Gaps with AI</button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow p-6 mt-6">
+                        <h3 class="font-semibold mb-4">AI Generation</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Category</label>
+                                <select id="ai-category" class="w-full border rounded-lg px-3 py-2">
+                                    <option value="romantic">Romantic</option>
+                                    <option value="adventure">Adventure</option>
+                                    <option value="foodie">Foodie</option>
+                                    <option value="cultural">Cultural</option>
+                                    <option value="relaxing">Relaxing</option>
+                                    <option value="fun">Fun</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Budget</label>
+                                <select id="ai-budget" class="w-full border rounded-lg px-3 py-2">
+                                    <option value="free">Free</option>
+                                    <option value="budget">Budget ($)</option>
+                                    <option value="moderate">Moderate ($$)</option>
+                                    <option value="upscale">Upscale ($$$)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Count</label>
+                                <input type="number" id="ai-count" value="5" min="1" max="20" class="w-full border rounded-lg px-3 py-2">
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="generateCustomAI()" class="w-full btn-primary text-white px-4 py-2 rounded-lg">Generate</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow p-6 mt-6">
+                        <h3 class="font-semibold mb-4">User Submissions</h3>
+                        <div id="submissions-list" class="space-y-4"></div>
+                    </div>
+                </section>
+
+                <!-- Users Section -->
+                <section id="section-users" class="section hidden">
+                    <div class="bg-white rounded-xl shadow p-6">
+                        <h3 class="font-semibold mb-4">User Statistics</h3>
+                        <p class="text-gray-500">User management coming soon...</p>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add Idea Modal -->
+    <div id="add-idea-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-auto">
+            <div class="p-6 border-b">
+                <h3 class="text-xl font-semibold">Add New Date Idea</h3>
+            </div>
+            <form id="add-idea-form" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Title</label>
+                    <input type="text" name="title" required class="w-full border rounded-lg px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Description</label>
+                    <textarea name="description" rows="3" required class="w-full border rounded-lg px-3 py-2"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Category</label>
+                        <select name="category" required class="w-full border rounded-lg px-3 py-2">
+                            <option value="romantic">Romantic</option>
+                            <option value="adventure">Adventure</option>
+                            <option value="foodie">Foodie</option>
+                            <option value="cultural">Cultural</option>
+                            <option value="relaxing">Relaxing</option>
+                            <option value="fun">Fun</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Budget</label>
+                        <select name="budget" required class="w-full border rounded-lg px-3 py-2">
+                            <option value="free">Free</option>
+                            <option value="budget">Budget ($)</option>
+                            <option value="moderate">Moderate ($$)</option>
+                            <option value="upscale">Upscale ($$$)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Image URL</label>
+                    <input type="url" name="image_url" class="w-full border rounded-lg px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Location</label>
+                    <input type="text" name="location" placeholder="e.g., Downtown Nashville" class="w-full border rounded-lg px-3 py-2">
+                </div>
+                <div class="flex justify-end gap-3 pt-4">
+                    <button type="button" onclick="closeModal('add-idea-modal')" class="px-4 py-2 border rounded-lg">Cancel</button>
+                    <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Add Idea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300">
+        <span id="toast-message"></span>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        let currentSection = 'overview';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadOverview();
+        });
+
+        // Navigation
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`section-${section}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.sidebar-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.section === section) item.classList.add('active');
+            });
+
+            const titles = {
+                overview: 'Overview',
+                ideas: 'Date Ideas',
+                review: 'Review Queue',
+                events: 'Events',
+                partners: 'Retail Partners',
+                seeder: 'Content Seeder',
+                users: 'Users'
+            };
+            document.getElementById('page-title').textContent = titles[section];
+            currentSection = section;
+
+            // Load section data
+            switch(section) {
+                case 'overview': loadOverview(); break;
+                case 'ideas': loadIdeas(); break;
+                case 'review': loadReviewQueue('pending'); break;
+                case 'events': loadEvents(); break;
+                case 'partners': loadPartners(); break;
+                case 'seeder': loadSeeder(); break;
+            }
+        }
+
+        // API Helpers
+        async function api(endpoint, options = {}) {
+            try {
+                const res = await fetch(API_BASE + endpoint, {
+                    headers: { 'Content-Type': 'application/json', ...options.headers },
+                    ...options
+                });
+                return await res.json();
+            } catch (e) {
+                console.error('API Error:', e);
+                showToast('API Error: ' + e.message, 'error');
+                return null;
+            }
+        }
+
+        // Overview
+        async function loadOverview() {
+            const stats = await api('/admin/api/stats');
+            const reviewStats = await api('/admin/review/api/stats');
+            const events = await api('/api/events');
+            const partners = await api('/api/retail/partners');
+
+            if (stats) {
+                document.getElementById('stat-ideas').textContent = stats.total_ideas || 0;
+                
+                // Category chart
+                const chartHtml = Object.entries(stats.by_category || {}).map(([cat, count]) => {
+                    const max = Math.max(...Object.values(stats.by_category));
+                    const pct = (count / max) * 100;
+                    return `
+                        <div class="flex items-center gap-3">
+                            <span class="w-24 text-sm capitalize">${cat}</span>
+                            <div class="flex-1 bg-gray-200 rounded-full h-4">
+                                <div class="bg-green-800 h-4 rounded-full" style="width: ${pct}%"></div>
+                            </div>
+                            <span class="text-sm font-medium">${count}</span>
+                        </div>
+                    `;
+                }).join('');
+                document.getElementById('category-chart').innerHTML = chartHtml;
+            }
+
+            if (reviewStats) {
+                document.getElementById('stat-pending').textContent = reviewStats.pending || 0;
+            }
+
+            if (events) {
+                document.getElementById('stat-events').textContent = events.total || 0;
+            }
+
+            if (partners) {
+                document.getElementById('stat-partners').textContent = partners.total || 0;
+            }
+
+            updateTimestamp();
+        }
+
+        // Ideas
+        async function loadIdeas() {
+            const category = document.getElementById('filter-category')?.value || '';
+            const url = category ? `/admin/api/ideas?category=${category}` : '/admin/api/ideas';
+            const data = await api(url);
+            
+            if (data && data.ideas) {
+                const html = data.ideas.map(idea => `
+                    <tr>
+                        <td class="px-6 py-4">
+                            <img src="${idea.image_url || 'https://via.placeholder.com/60'}" class="w-12 h-12 rounded-lg object-cover">
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="font-medium">${idea.title}</div>
+                            <div class="text-sm text-gray-500 truncate max-w-xs">${idea.description?.substring(0, 60)}...</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs capitalize">${idea.category}</span>
+                        </td>
+                        <td class="px-6 py-4 capitalize">${idea.budget || '-'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${idea.source || 'curated'}</td>
+                        <td class="px-6 py-4">
+                            <button onclick="editIdea('${idea.id}')" class="text-blue-600 hover:text-blue-800 mr-2">Edit</button>
+                            <button onclick="deleteIdea('${idea.id}')" class="text-red-600 hover:text-red-800">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+                document.getElementById('ideas-table').innerHTML = html;
+            }
+        }
+
+        // Review Queue
+        async function loadReviewQueue(status = 'pending') {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+                if (btn.dataset.status === status) btn.classList.add('tab-active');
+            });
+
+            const data = await api(`/admin/review/api/queue?status=${status}`);
+            
+            if (data && data.ideas) {
+                const html = data.ideas.map(item => `
+                    <div class="bg-white rounded-xl shadow overflow-hidden">
+                        <img src="${item.image_url || 'https://via.placeholder.com/300x200'}" class="w-full h-40 object-cover">
+                        <div class="p-4">
+                            <h4 class="font-semibold">${item.title}</h4>
+                            <p class="text-sm text-gray-500 mt-1">${item.description?.substring(0, 100)}...</p>
+                            <div class="flex items-center gap-2 mt-2">
+                                <span class="px-2 py-1 bg-gray-100 rounded text-xs capitalize">${item.category}</span>
+                                <span class="px-2 py-1 badge-${status} rounded text-xs capitalize">${status}</span>
+                            </div>
+                            ${status === 'pending' ? `
+                                <div class="flex gap-2 mt-4">
+                                    <button onclick="approveItem('${item.id}')" class="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm">Approve</button>
+                                    <button onclick="rejectItem('${item.id}')" class="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm">Reject</button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('review-queue').innerHTML = html || '<p class="text-gray-500">No items in queue</p>';
+            }
+        }
+
+        async function approveItem(id) {
+            await api(`/admin/review/api/queue/${id}/approve`, { method: 'PUT' });
+            showToast('Item approved!');
+            loadReviewQueue('pending');
+            loadOverview();
+        }
+
+        async function rejectItem(id) {
+            const reason = prompt('Rejection reason (optional):') || '';
+            await api(`/admin/review/api/queue/${id}/reject`, { 
+                method: 'PUT',
+                body: JSON.stringify({ reason })
+            });
+            showToast('Item rejected');
+            loadReviewQueue('pending');
+        }
+
+        async function generateForReview() {
+            showToast('Generating ideas with AI...');
+            const result = await api('/admin/review/api/generate', { 
+                method: 'POST',
+                body: JSON.stringify({ count: 5 })
+            });
+            if (result && result.success) {
+                showToast(`Generated ${result.count} ideas for review!`);
+            } else {
+                showToast('AI generation requires GEMINI_API_KEY', 'error');
+            }
+            loadReviewQueue('pending');
+        }
+
+        // Events
+        async function loadEvents() {
+            const data = await api('/api/events');
+            
+            if (data && data.events) {
+                const html = data.events.map(event => `
+                    <div class="bg-white rounded-xl shadow overflow-hidden">
+                        <img src="${event.image_url || 'https://via.placeholder.com/300x200'}" class="w-full h-40 object-cover">
+                        <div class="p-4">
+                            <h4 class="font-semibold">${event.title}</h4>
+                            <p class="text-sm text-gray-500 mt-1">${event.venue || ''}</p>
+                            <p class="text-sm text-blue-600 mt-1">${event.date || ''}</p>
+                            <span class="inline-block mt-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">${event.source || 'event'}</span>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('events-list').innerHTML = html || '<p class="text-gray-500">No events found. Click "Scrape All" to fetch events.</p>';
+            }
+        }
+
+        async function scrapeEvents() {
+            showToast('Scraping events...');
+            await api('/admin/events/scrape/all', { method: 'POST' });
+            showToast('Events scraped!');
+            loadEvents();
+        }
+
+        async function scrapeTicketmaster() {
+            await api('/admin/events/scrape/ticketmaster', { method: 'POST' });
+            showToast('Ticketmaster events scraped!');
+            loadEvents();
+        }
+
+        async function scrapeSocialTrends() {
+            await api('/admin/events/scrape/social-trends', { method: 'POST' });
+            showToast('Social trends scraped!');
+            loadEvents();
+        }
+
+        async function scrapeSeasonal() {
+            await api('/admin/events/scrape/seasonal', { method: 'POST' });
+            showToast('Seasonal events scraped!');
+            loadEvents();
+        }
+
+        // Partners
+        async function loadPartners() {
+            const data = await api('/api/retail/partners');
+            
+            if (data && data.partners) {
+                const html = data.partners.map(p => `
+                    <div class="bg-white rounded-xl shadow p-4">
+                        <div class="flex items-center gap-3">
+                            <img src="${p.logo_url || 'https://via.placeholder.com/60'}" class="w-12 h-12 rounded-lg">
+                            <div>
+                                <h4 class="font-semibold">${p.name}</h4>
+                                <p class="text-sm text-gray-500">${p.category || ''}</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex justify-between text-sm">
+                            <span class="text-gray-500">Tier: ${p.tier || 'Basic'}</span>
+                            <span class="${p.active ? 'text-green-600' : 'text-gray-400'}">${p.active ? 'Active' : 'Inactive'}</span>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('partners-list').innerHTML = html || '<p class="text-gray-500">No partners yet</p>';
+            }
+
+            // Load image review queue
+            const imageQueue = await api('/admin/retail/image-review');
+            if (imageQueue && imageQueue.ideas) {
+                const html = imageQueue.ideas.map(idea => `
+                    <div class="bg-white rounded-xl shadow overflow-hidden">
+                        <img src="${idea.image_url}" class="w-full h-40 object-cover">
+                        <div class="p-4">
+                            <h4 class="font-semibold">${idea.title}</h4>
+                            <div class="flex gap-2 mt-3">
+                                <button onclick="approveImage('${idea.id}')" class="flex-1 bg-green-600 text-white py-2 rounded text-sm">Approve</button>
+                                <button onclick="rejectImage('${idea.id}')" class="flex-1 bg-red-600 text-white py-2 rounded text-sm">Reject</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('image-review-queue').innerHTML = html || '<p class="text-gray-500">No images pending review</p>';
+            }
+        }
+
+        async function approveImage(id) {
+            await api(`/admin/retail/image-review/${id}/approve`, { method: 'POST' });
+            showToast('Image approved!');
+            loadPartners();
+        }
+
+        async function rejectImage(id) {
+            await api(`/admin/retail/image-review/${id}/reject`, { method: 'POST' });
+            showToast('Image rejected');
+            loadPartners();
+        }
+
+        // Seeder
+        async function loadSeeder() {
+            const packs = await api('/admin/seeder/packs');
+            const gaps = await api('/admin/seeder/gaps');
+            const submissions = await api('/admin/seeder/submissions');
+
+            if (packs && packs.packs) {
+                const packsArray = Object.entries(packs.packs);
+                const html = packsArray.map(([packId, pack]) => `
+                    <div class="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                            <p class="font-medium">${pack.name}</p>
+                            <p class="text-sm text-gray-500">${pack.idea_count} ideas - ${pack.description}</p>
+                        </div>
+                        <button onclick="installPack('${packId}')" class="px-3 py-1 border rounded hover:bg-gray-50 text-sm">Install</button>
+                    </div>
+                `).join('');
+                document.getElementById('packs-list').innerHTML = html || '<p class="text-gray-500">No packs available</p>';
+            }
+
+            if (gaps) {
+                const underRep = gaps.under_represented_categories || [];
+                const missing = gaps.missing_categories || [];
+                const allGaps = [...new Set([...underRep, ...missing])];
+                
+                if (allGaps.length > 0) {
+                    const html = allGaps.map(cat => {
+                        const current = gaps.category_distribution?.[cat] || 0;
+                        return `
+                            <div class="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <div>
+                                    <p class="font-medium capitalize">${cat}</p>
+                                    <p class="text-sm text-yellow-700">Under-represented category</p>
+                                </div>
+                                <span class="text-2xl">${current} ideas</span>
+                            </div>
+                        `;
+                    }).join('');
+                    document.getElementById('gaps-list').innerHTML = html;
+                } else {
+                    document.getElementById('gaps-list').innerHTML = '<p class="text-green-600">All categories are well-populated!</p>';
+                }
+            }
+
+            if (submissions && submissions.submissions) {
+                const html = submissions.submissions.map(sub => `
+                    <div class="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                            <p class="font-medium">${sub.title}</p>
+                            <p class="text-sm text-gray-500">Submitted by user</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="approveSubmission('${sub.id}')" class="px-3 py-1 bg-green-600 text-white rounded text-sm">Approve</button>
+                            <button onclick="rejectSubmission('${sub.id}')" class="px-3 py-1 bg-red-600 text-white rounded text-sm">Reject</button>
+                        </div>
+                    </div>
+                `).join('');
+                document.getElementById('submissions-list').innerHTML = html || '<p class="text-gray-500">No user submissions</p>';
+            }
+        }
+
+        async function installPack(packId) {
+            showToast('Installing pack...');
+            await api('/admin/seeder/install-pack', { 
+                method: 'POST',
+                body: JSON.stringify({ pack_name: packId })
+            });
+            showToast('Pack installed!');
+            loadSeeder();
+            loadOverview();
+        }
+
+        async function installAllPacks() {
+            showToast('Installing all packs...');
+            await api('/admin/seeder/install-all-packs', { method: 'POST' });
+            showToast('All packs installed!');
+            loadSeeder();
+            loadOverview();
+        }
+
+        async function fillGaps() {
+            showToast('Generating content to fill gaps...');
+            await api('/admin/seeder/fill-gaps', { method: 'POST' });
+            showToast('Gaps filled with AI content!');
+            loadSeeder();
+        }
+
+        async function generateAIIdeas() {
+            showToast('Generating AI ideas...');
+            await api('/admin/seeder/generate-ai', { method: 'POST' });
+            showToast('AI ideas generated!');
+            loadOverview();
+        }
+
+        async function generateCustomAI() {
+            const category = document.getElementById('ai-category').value;
+            const budget = document.getElementById('ai-budget').value;
+            const count = document.getElementById('ai-count').value;
+            
+            showToast('Generating custom AI ideas...');
+            await api(`/admin/seeder/generate-ai?category=${category}&budget=${budget}&count=${count}`, { method: 'POST' });
+            showToast(`Generated ${count} ${category} ideas!`);
+            loadSeeder();
+        }
+
+        // Modals
+        function showAddIdeaModal() {
+            document.getElementById('add-idea-modal').classList.remove('hidden');
+            document.getElementById('add-idea-modal').classList.add('flex');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).classList.remove('flex');
+        }
+
+        document.getElementById('add-idea-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                title: form.title.value,
+                description: form.description.value,
+                category: form.category.value,
+                budget: form.budget.value,
+                image_url: form.image_url.value,
+                location: form.location.value
+            };
+            
+            await api('/admin/api/ideas', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            
+            showToast('Idea added!');
+            closeModal('add-idea-modal');
+            form.reset();
+            loadIdeas();
+        });
+
+        async function deleteIdea(id) {
+            if (confirm('Delete this idea?')) {
+                await api(`/admin/api/ideas/${id}`, { method: 'DELETE' });
+                showToast('Idea deleted');
+                loadIdeas();
+            }
+        }
+
+        // Utilities
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function updateTimestamp() {
+            document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+        }
+
+        function refreshData() {
+            showSection(currentSection);
+            showToast('Data refreshed!');
+        }
+    </script>
+</body>
+</html>

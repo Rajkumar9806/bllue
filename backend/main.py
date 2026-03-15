@@ -122,6 +122,15 @@ app.include_router(retail_router)
 app.include_router(events_router)
 app.include_router(pipeline_router)
 
+# Admin Dashboard UI
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard():
+    """Serve the admin dashboard UI"""
+    template_path = ROOT_DIR / "templates" / "admin_dashboard.html"
+    if template_path.exists():
+        return HTMLResponse(content=template_path.read_text(), status_code=200)
+    return HTMLResponse(content="<h1>Admin Dashboard not found</h1>", status_code=404)
+
 # Database connection pool
 db_pool: Optional[asyncpg.Pool] = None
 
@@ -409,24 +418,34 @@ async def startup():
     logger.info("Starting Arrow API...")
     global db_pool
     await init_database()
+    
+    # Get database pool FIRST
+    db_pool = await get_db()
+    
+    # Set db_pool in all routers BEFORE initializing tables
+    admin_set_db_pool(db_pool)
+    review_queue_set_db_pool(db_pool)
+    partner_set_db_pool(db_pool)
+    journal_set_db_pool(db_pool)
+    seeder_set_db_pool(db_pool)
+    retail_set_db_pool(db_pool)
+    events_set_db_pool(db_pool)
+    pipeline_set_db_pool(db_pool)
+    
+    # Set AI provider for review queue
+    review_queue_set_ai_provider(current_ai_provider)
+    set_ai_generator(generate_ai_date_ideas, current_ai_provider)
+    
+    # NOW initialize tables (after db_pool is set)
     await init_review_queue()
     await init_partner_tables()
     await init_journal_tables()
-    db_pool = await get_db()
-    admin_set_db_pool(db_pool)  # Pass pool to admin router
-    review_queue_set_db_pool(db_pool)  # Pass pool to review queue router
-    partner_set_db_pool(db_pool)  # Pass pool to partner router
-    journal_set_db_pool(db_pool)  # Pass pool to journal router
-    review_queue_set_ai_provider(current_ai_provider)  # Set AI provider for review queue
-    seeder_set_db_pool(db_pool)  # Pass pool to seeder
-    set_ai_generator(generate_ai_date_ideas, current_ai_provider)  # Set AI generator for seeder
-    await init_seeder_tables()  # Initialize seeder tables
-    retail_set_db_pool(db_pool)  # Pass pool to retail partners
-    await init_retail_tables()  # Initialize retail partner tables
-    events_set_db_pool(db_pool)  # Pass pool to live events
-    await init_events_tables()  # Initialize events tables
-    pipeline_set_db_pool(db_pool)  # Pass pool to daily pipeline
-    start_pipeline_scheduler()  # Start daily pipeline background scheduler
+    await init_seeder_tables()
+    await init_retail_tables()
+    await init_events_tables()
+    
+    # Start background scheduler
+    start_pipeline_scheduler()
     await seed_date_ideas()
     logger.info("Arrow API started successfully!")
 
