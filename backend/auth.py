@@ -1,5 +1,5 @@
 """
-bllue Backend - Authentication Services
+Arrow Backend - Authentication Services
 JWT, OTP, Password Hashing
 """
 

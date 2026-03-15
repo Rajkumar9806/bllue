@@ -1,8 +1,8 @@
-# bllue - AI-Powered Date Night Planning App
+# Arrow - AI-Powered Date Night Planning App
 
 ## 📱 App Overview
 
-**bllue** is a mobile application that helps couples discover, plan, and execute memorable date nights using AI-powered personalization. The app learns user preferences through a personality quiz and delivers tailored date ideas with step-by-step execution guides.
+**Arrow** is a mobile application that helps couples discover, plan, and execute memorable date nights using AI-powered personalization. The app learns user preferences through a personality quiz and delivers tailored date ideas with step-by-step execution guides.
 
 **Target Market:** Couples aged 22-40 seeking meaningful experiences together  
 **Problem Solved:** Decision fatigue around planning dates + lack of personalized recommendations  
@@ -229,7 +229,7 @@ otp_codes
 ## 🚀 Deployment Status
 
 ### Production Environment
-- **Backend URL:** https://bllue.app
+- **Backend URL:** https://arrow.app
 - **Server:** AWS EC2 (t2.micro, us-east-1)
 - **Database:** PostgreSQL on EC2
 - **SSL:** Let's Encrypt via Nginx
@@ -237,7 +237,7 @@ otp_codes
 ### App Distribution
 - **iOS:** TestFlight (Apple Developer Program active)
 - **Android:** Internal testing APK available
-- **Bundle ID:** com.bllue.app
+- **Bundle ID:** com.arrow.app
 
 ---
 
@@ -301,10 +301,10 @@ npx expo start --tunnel
 
 ## 📞 Contact & Links
 
-- **App URL:** https://bllue.app
-- **API Docs:** https://bllue.app/docs
-- **Support:** support@bllue.app
-- **Privacy:** privacy@bllue.app
+- **App URL:** https://arrow.app
+- **API Docs:** https://arrow.app/docs
+- **Support:** support@arrow.app
+- **Privacy:** privacy@arrow.app
 
 ---
 

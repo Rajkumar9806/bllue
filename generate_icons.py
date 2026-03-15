@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Icon Generator for bllue App
+Icon Generator for Arrow App
 Generates PNG icons from the SVG designs for App Store and Play Store
 """
 
@@ -187,7 +187,7 @@ def create_splash_icon(size, output_path):
     print(f"Created: {output_path}")
 
 def main():
-    print("🎨 Generating bllue app icons...\n")
+    print("🎨 Generating Arrow app icons...\n")
     
     # Main app icon (1024x1024 for App Store)
     create_app_icon(1024, 'frontend/assets/images/icon.png', include_background=True)

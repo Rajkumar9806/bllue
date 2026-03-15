@@ -1,4 +1,4 @@
-# bllue Backend - EC2 Production Deployment Guide
+# arrow Backend - EC2 Production Deployment Guide
 
 ## Prerequisites
 - AWS EC2 instance (Ubuntu 22.04 recommended)
@@ -35,8 +35,8 @@ exit
 ssh -i your-key.pem ubuntu@your-ec2-ip
 
 # Create app directory
-mkdir -p ~/bllue-backend
-cd ~/bllue-backend
+mkdir -p ~/arrow-backend
+cd ~/arrow-backend
 
 # Create docker-compose.yml
 cat > docker-compose.yml << 'EOF'
@@ -59,12 +59,12 @@ services:
 EOF
 
 # Upload your backend files (from local machine)
-# scp -i your-key.pem -r /path/to/backend/* ubuntu@your-ec2-ip:~/bllue-backend/
+# scp -i your-key.pem -r /path/to/backend/* ubuntu@your-ec2-ip:~/arrow-backend/
 
 # Create .env file on EC2
 cat > .env << 'EOF'
 DATABASE_URL=postgresql://neondb_owner:npg_mcuR2EY6gVwv@ep-delicate-wildflower-ahtlr24e-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require
-JWT_SECRET=bllue_jwt_secret_key_2026_production_v1_secure_random_string
+JWT_SECRET=arrow_jwt_secret_key_2026_production_v1_secure_random_string
 EOF
 
 # Build and start
@@ -83,7 +83,7 @@ sudo apt install nginx -y
 sudo apt install certbot python3-certbot-nginx -y
 
 # Create Nginx config (replace YOUR_DOMAIN)
-sudo tee /etc/nginx/sites-available/bllue << 'EOF'
+sudo tee /etc/nginx/sites-available/arrow << 'EOF'
 server {
     listen 80;
     server_name YOUR_DOMAIN;
@@ -103,7 +103,7 @@ server {
 EOF
 
 # Enable site
-sudo ln -s /etc/nginx/sites-available/bllue /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/arrow /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 
@@ -126,11 +126,11 @@ sudo apt update
 sudo apt install python3.12 python3.12-venv python3-pip -y
 
 # Create app directory
-mkdir -p ~/bllue-backend
-cd ~/bllue-backend
+mkdir -p ~/arrow-backend
+cd ~/arrow-backend
 
 # Upload files (from local machine)
-# scp -i your-key.pem main.py requirements-prod.txt .env ubuntu@your-ec2-ip:~/bllue-backend/
+# scp -i your-key.pem main.py requirements-prod.txt .env ubuntu@your-ec2-ip:~/arrow-backend/
 
 # Create virtual environment
 python3.12 -m venv venv
@@ -140,16 +140,16 @@ source venv/bin/activate
 pip install -r requirements-prod.txt
 
 # Run with systemd (recommended for production)
-sudo tee /etc/systemd/system/bllue.service << 'EOF'
+sudo tee /etc/systemd/system/arrow.service << 'EOF'
 [Unit]
-Description=bllue API
+Description=Arrow API
 After=network.target
 
 [Service]
 User=ubuntu
-WorkingDirectory=/home/ubuntu/bllue-backend
-Environment="PATH=/home/ubuntu/bllue-backend/venv/bin"
-ExecStart=/home/ubuntu/bllue-backend/venv/bin/python main.py
+WorkingDirectory=/home/ubuntu/arrow-backend
+Environment="PATH=/home/ubuntu/arrow-backend/venv/bin"
+ExecStart=/home/ubuntu/arrow-backend/venv/bin/python main.py
 Restart=always
 
 [Install]
@@ -158,11 +158,11 @@ EOF
 
 # Enable and start
 sudo systemctl daemon-reload
-sudo systemctl enable bllue
-sudo systemctl start bllue
+sudo systemctl enable arrow
+sudo systemctl start arrow
 
 # Check status
-sudo systemctl status bllue
+sudo systemctl status arrow
 ```
 
 ## Update Frontend App

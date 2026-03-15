@@ -1,4 +1,4 @@
-# bllue.app - Production Deployment Checklist
+# Arrow.app - Production Deployment Checklist
 
 ## 🔐 Store Account Setup
 
@@ -35,7 +35,7 @@
 - [ ] Feature Graphic (1024x500 for Play Store)
 
 ### App Store Listing Content
-- [ ] App Name: bllue
+- [ ] App Name: arrow
 - [ ] Subtitle: Date ideas, made easy
 - [ ] Description (short + long)
 - [ ] Keywords (for App Store)
@@ -52,7 +52,7 @@
 ```
 # Database
 MONGO_URL=mongodb+srv://...
-DB_NAME=bllue_production
+DB_NAME=arrow_production
 
 # Authentication
 JWT_SECRET_KEY=<generate-secure-key>
@@ -67,8 +67,8 @@ SENTRY_DSN=<optional>
 ```
 
 ### Bundle Identifiers
-- iOS: `app.bllue.ios`
-- Android: `app.bllue.android`
+- iOS: `app.arrow.ios`
+- Android: `app.arrow.android`
 
 ---
 

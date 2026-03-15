@@ -1,5 +1,5 @@
 """
-bllue Backend - SMS OTP Service
+Arrow Backend - SMS OTP Service
 Using Twilio for production
 """
 
@@ -43,7 +43,7 @@ async def send_otp_sms(phone_number: str, otp_code: str) -> bool:
     
     try:
         message = twilio_client.messages.create(
-            body=f"Your bllue verification code is: {otp_code}\n\nThis code expires in 10 minutes.",
+            body=f"Your Arrow verification code is: {otp_code}\n\nThis code expires in 10 minutes.",
             from_=TWILIO_PHONE_NUMBER,
             to=phone_number
         )
@@ -63,7 +63,7 @@ async def send_welcome_sms(phone_number: str, name: str) -> bool:
     
     try:
         message = twilio_client.messages.create(
-            body=f"Welcome to bllue, {name}! 💕\n\nDiscover amazing date ideas and never forget a special moment.\n\n- The bllue team",
+            body=f"Welcome to Arrow, {name}! 💕\n\nDiscover amazing date ideas and never forget a special moment.\n\n- The Arrow team",
             from_=TWILIO_PHONE_NUMBER,
             to=phone_number
         )

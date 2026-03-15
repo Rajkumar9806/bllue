@@ -1,5 +1,5 @@
 """
-bllue Backend - Database Configuration
+Arrow Backend - Database Configuration
 Async PostgreSQL with SQLAlchemy
 """
 
@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://localhost/bllue")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://localhost/arrow")
 
 # For Neon, we need NullPool because of serverless nature
 engine = create_async_engine(

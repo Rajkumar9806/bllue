@@ -1,5 +1,5 @@
 """
-Simple test backend for bllue app - No database required
+Simple test backend for Arrow app - No database required
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +9,7 @@ import random
 from datetime import datetime, timedelta
 import uuid
 
-app = FastAPI(title="bllue API - Test Mode")
+app = FastAPI(title="Arrow API - Test Mode")
 
 # CORS
 app.add_middleware(
@@ -166,7 +166,7 @@ class QuestionnaireData(BaseModel):
 # Routes
 @app.get("/")
 async def root():
-    return {"message": "bllue API - Test Mode", "status": "running"}
+    return {"message": "Arrow API - Test Mode", "status": "running"}
 
 @app.get("/api/health")
 async def health():

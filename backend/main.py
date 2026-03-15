@@ -1,8 +1,9 @@
 """
-bllue API - Production Backend with Neon PostgreSQL
+Arrow API - Production Backend with Neon PostgreSQL
 """
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -23,6 +24,49 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Import admin router
+from admin import router as admin_router, set_db_pool as admin_set_db_pool
+
+# Import review queue router
+from review_queue import router as review_queue_router, set_db_pool as review_queue_set_db_pool, set_ai_provider as review_queue_set_ai_provider, init_review_queue_table
+
+# Import partner pairing router
+from partner import router as partner_router, set_db_pool as partner_set_db_pool, init_partner_tables
+
+# Import journal router
+from journal import router as journal_router, set_db_pool as journal_set_db_pool, init_journal_tables
+
+# Import AI provider system
+from ai_providers import get_ai_provider, get_available_providers, clean_response_text
+
+# Import smart preference algorithm v2
+from smart_algorithm import (
+    compute_user_preferences,
+    build_smart_prompt,
+    compute_partner_compatibility,
+    get_current_weather,
+    compute_temporal_preferences,
+    compute_feedback_enhanced_preferences,
+    get_seasonal_context,
+    get_anniversary_context,
+    compute_budget_context,
+    get_freshness_context,
+    MOOD_OPTIONS,
+    ENERGY_LEVELS
+)
+
+# Import idea seeder
+from idea_seeder import router as seeder_router, set_db_pool as seeder_set_db_pool, set_ai_generator, init_seeder_tables
+
+# Import retail partner system
+from retail_partners import router as retail_router, set_db_pool as retail_set_db_pool, init_retail_tables
+
+# Import live events & multi-source scraper
+from live_events import router as events_router, set_db_pool as events_set_db_pool, init_events_tables
+
+# Import daily pipeline scheduler
+from daily_pipeline import router as pipeline_router, set_db_pool as pipeline_set_db_pool, start_pipeline_scheduler, stop_pipeline_scheduler
+
 # Configuration - Use PROD_DATABASE_URL for production, DATABASE_URL for dev (Neon)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 if ENVIRONMENT == "production":
@@ -30,13 +74,15 @@ if ENVIRONMENT == "production":
 else:
     DATABASE_URL = os.getenv("DATABASE_URL")  # Neon for dev
 
-JWT_SECRET = os.getenv("JWT_SECRET", "bllue_jwt_secret_key_2026_production_v1")
+JWT_SECRET = os.getenv("JWT_SECRET", "arrow_jwt_secret_key_2026_production_v1")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 
-# Gemini API Configuration
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# AI Provider Configuration
+AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()  # Default to Gemini for backward compatibility
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # Kept for backward compatibility
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # Social Media API Keys (for trending content)
 INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
@@ -52,8 +98,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # FastAPI app
 app = FastAPI(
-    title="bllue API",
-    description="Date night idea provider API",
+    title="Arrow API",
+    description="AI-Powered Date Planning API",
     version="1.0.0"
 )
 
@@ -66,8 +112,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount routers
+app.include_router(admin_router)
+app.include_router(review_queue_router)
+app.include_router(partner_router)
+app.include_router(journal_router)
+app.include_router(seeder_router)
+app.include_router(retail_router)
+app.include_router(events_router)
+app.include_router(pipeline_router)
+
 # Database connection pool
 db_pool: Optional[asyncpg.Pool] = None
+
+# Current AI provider (can be changed at runtime)
+current_ai_provider: str = AI_PROVIDER
 
 # ==================== MODELS ====================
 
@@ -106,6 +165,32 @@ class PersonalitySubmit(BaseModel):
 class TokenData(BaseModel):
     user_id: str
     phone_number: str
+
+class OccasionCreate(BaseModel):
+    person_name: str
+    occasion_type: str  # birthday, anniversary, valentine, holiday, date_night, other
+    date: str  # Accept string dates (ISO format or common formats)
+    reminder_days_before: int = 7
+    notes: Optional[str] = None
+
+class OccasionUpdate(BaseModel):
+    person_name: Optional[str] = None
+    occasion_type: Optional[str] = None
+    date: Optional[str] = None
+    reminder_days_before: Optional[int] = None
+    notes: Optional[str] = None
+
+class Occasion(BaseModel):
+    id: str
+    user_id: str
+    person_name: str
+    occasion_type: str
+    date: str  # ISO format string
+    reminder_days_before: int
+    notes: Optional[str]
+    reminder_sent: bool
+    created_at: str
+    updated_at: str
 
 # ==================== DATABASE ====================
 
@@ -173,9 +258,24 @@ async def init_database():
                 image_url TEXT,
                 tags TEXT[],
                 is_trending BOOLEAN DEFAULT FALSE,
+                source VARCHAR(50) DEFAULT 'curated',
+                updated_at TIMESTAMP DEFAULT NOW(),
+                updated_by VARCHAR(255),
                 created_at TIMESTAMP DEFAULT NOW()
             )
         ''')
+
+        # Add new columns to date_ideas if they don't exist
+        for column_def in [
+            ('source', "VARCHAR(50) DEFAULT 'curated'"),
+            ('updated_at', "TIMESTAMP DEFAULT NOW()"),
+            ('updated_by', "VARCHAR(255)")
+        ]:
+            col_name = column_def[0]
+            try:
+                await conn.execute(f'ALTER TABLE date_ideas ADD COLUMN IF NOT EXISTS {col_name} {column_def[1]}')
+            except Exception:
+                pass  # Column might already exist
         
         # Wishlist table
         await conn.execute('''
@@ -202,8 +302,54 @@ async def init_database():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         ''')
-        
+
+        # Occasions table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS occasions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                person_name VARCHAR(255) NOT NULL,
+                occasion_type VARCHAR(50) NOT NULL,
+                date TIMESTAMP NOT NULL,
+                reminder_days_before INTEGER DEFAULT 7,
+                notes TEXT,
+                reminder_sent BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        ''')
+
+        # Featured ideas table (daily/weekly picks)
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS featured_ideas (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                date_idea_id UUID REFERENCES date_ideas(id) ON DELETE CASCADE,
+                feature_type VARCHAR(10) NOT NULL,
+                feature_date DATE NOT NULL,
+                featured_by VARCHAR(255) DEFAULT 'system',
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(feature_type, feature_date)
+            )
+        ''')
+
+        # Idea interactions table (accept/reject tracking)
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS idea_interactions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                date_idea_id UUID,
+                idea_title VARCHAR(255),
+                action VARCHAR(20) NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, date_idea_id)
+            )
+        ''')
+
         logger.info("Database tables initialized")
+
+async def init_review_queue():
+    """Initialize review queue tables"""
+    await init_review_queue_table()
 
 async def seed_date_ideas():
     """Seed initial date ideas"""
@@ -250,9 +396,9 @@ async def seed_date_ideas():
         
         for title, desc, cat, budget, duration, loc_type, img_url, tags in ideas:
             await conn.execute('''
-                INSERT INTO date_ideas (title, description, category, budget, duration, location_type, image_url, tags, is_trending)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            ''', title, desc, cat, budget, duration, loc_type, img_url, tags, random.random() > 0.7)
+                INSERT INTO date_ideas (title, description, category, budget, duration, location_type, image_url, tags, is_trending, source, updated_by)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ''', title, desc, cat, budget, duration, loc_type, img_url, tags, random.random() > 0.7, 'curated', 'seed')
         
         logger.info(f"Seeded {len(ideas)} date ideas")
 
@@ -260,14 +406,34 @@ async def seed_date_ideas():
 
 @app.on_event("startup")
 async def startup():
-    logger.info("Starting bllue API...")
+    logger.info("Starting Arrow API...")
+    global db_pool
     await init_database()
+    await init_review_queue()
+    await init_partner_tables()
+    await init_journal_tables()
+    db_pool = await get_db()
+    admin_set_db_pool(db_pool)  # Pass pool to admin router
+    review_queue_set_db_pool(db_pool)  # Pass pool to review queue router
+    partner_set_db_pool(db_pool)  # Pass pool to partner router
+    journal_set_db_pool(db_pool)  # Pass pool to journal router
+    review_queue_set_ai_provider(current_ai_provider)  # Set AI provider for review queue
+    seeder_set_db_pool(db_pool)  # Pass pool to seeder
+    set_ai_generator(generate_ai_date_ideas, current_ai_provider)  # Set AI generator for seeder
+    await init_seeder_tables()  # Initialize seeder tables
+    retail_set_db_pool(db_pool)  # Pass pool to retail partners
+    await init_retail_tables()  # Initialize retail partner tables
+    events_set_db_pool(db_pool)  # Pass pool to live events
+    await init_events_tables()  # Initialize events tables
+    pipeline_set_db_pool(db_pool)  # Pass pool to daily pipeline
+    start_pipeline_scheduler()  # Start daily pipeline background scheduler
     await seed_date_ideas()
-    logger.info("bllue API started successfully!")
+    logger.info("Arrow API started successfully!")
 
 @app.on_event("shutdown")
 async def shutdown():
     global db_pool
+    stop_pipeline_scheduler()  # Stop daily pipeline background scheduler
     if db_pool:
         await db_pool.close()
 
@@ -298,14 +464,54 @@ async def get_current_user(authorization: str = Header(None)):
 def generate_otp() -> str:
     return str(random.randint(100000, 999999))
 
-# ==================== GEMINI AI ====================
+def parse_date_string(date_str: str) -> datetime:
+    """Parse various date formats - crucial for the date button fix
 
-async def generate_ai_date_ideas(personality: Dict[str, Any], count: int = 5) -> List[Dict[str, Any]]:
-    """Generate personalized date ideas using Gemini AI"""
-    if not GEMINI_API_KEY:
-        logger.warning("Gemini API key not configured, returning empty list")
-        return []
-    
+    Supports:
+    - ISO format with milliseconds: 2026-03-15T14:30:00.000Z
+    - ISO format: 2026-03-15T14:30:00Z
+    - ISO format no Z: 2026-03-15T14:30:00
+    - Simple date: 2026-03-15
+    - US format with slashes: 03/15/2026
+    - US format with dashes: 03-15-2026
+    - EU format: 15/03/2026
+    """
+    if not date_str:
+        raise HTTPException(status_code=400, detail="Date is required")
+
+    formats = [
+        "%Y-%m-%dT%H:%M:%S.%fZ",  # ISO with millis
+        "%Y-%m-%dT%H:%M:%SZ",      # ISO
+        "%Y-%m-%dT%H:%M:%S",       # ISO no Z
+        "%Y-%m-%d",                # Simple date
+        "%m/%d/%Y",                # US format
+        "%m-%d-%Y",                # US with dashes
+        "%d/%m/%Y",                # EU format
+    ]
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+
+    # If no format matched, raise error
+    raise HTTPException(status_code=400, detail=f"Invalid date format: {date_str}. Expected ISO, US (MM/DD/YYYY), or EU (DD/MM/YYYY) format")
+
+# ==================== AI PROVIDERS ====================
+
+async def generate_ai_date_ideas(personality: Dict[str, Any], count: int = 5, require_review: bool = False) -> List[Dict[str, Any]]:
+    """Generate personalized date ideas using configured AI provider
+
+    Args:
+        personality: User personality profile dict
+        count: Number of ideas to generate
+        require_review: If True, insert into review queue instead of returning directly
+
+    Returns:
+        List of generated ideas (empty if require_review is True)
+    """
+
     prompt = f"""You are a creative date night planner. Based on the user's personality profile, generate {count} unique and personalized date night ideas.
 
 User Profile:
@@ -333,53 +539,49 @@ Return ONLY a valid JSON array with this exact structure (no markdown, no explan
 ]"""
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.9,
-                        "topP": 0.95,
-                        "maxOutputTokens": 2048
-                    }
-                }
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Gemini API error: {response.status_code} - {response.text}")
-                return []
-            
-            data = response.json()
-            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
-            
-            # Clean up the response - remove markdown code blocks if present
-            text = text.strip()
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-            
-            ideas = json.loads(text)
-            
-            # Add UUIDs and timestamps
-            for idea in ideas:
-                idea["id"] = str(uuid.uuid4())
-                idea["image_url"] = get_image_for_category(idea.get("category", "romantic"))
-                idea["is_trending"] = bool(idea.get("trending_on"))
-                idea["created_at"] = datetime.utcnow().isoformat()
-            
-            return ideas
-            
+        provider = get_ai_provider(current_ai_provider)
+        text = await provider.generate(prompt, temperature=0.9, max_tokens=2048)
+
+        # Clean up the response - remove markdown code blocks if present
+        text = clean_response_text(text)
+
+        ideas = json.loads(text)
+
+        # If require_review is True, insert into review queue and return empty list
+        if require_review:
+            async with db_pool.acquire() as conn:
+                for idea in ideas:
+                    idea_id = uuid.uuid4()
+                    await conn.execute('''
+                        INSERT INTO idea_reviews
+                        (id, idea_title, idea_description, idea_category, idea_budget,
+                         idea_duration, idea_location_type, idea_tags, ai_provider, status)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+                    ''', idea_id, idea.get('title', ''), idea.get('description', ''),
+                       idea.get('category', 'fun'), idea.get('budget', 'medium'),
+                       idea.get('duration', ''), idea.get('location_type', 'both'),
+                       idea.get('tags', []), current_ai_provider)
+            logger.info(f"Inserted {len(ideas)} ideas into review queue")
+            return []
+
+        # Add UUIDs and timestamps for direct return
+        for idea in ideas:
+            idea["id"] = str(uuid.uuid4())
+            idea["image_url"] = get_image_for_category(idea.get("category", "romantic"))
+            idea["is_trending"] = bool(idea.get("trending_on"))
+            idea["created_at"] = datetime.utcnow().isoformat()
+
+        return ideas
+
+    except ValueError as e:
+        logger.warning(f"AI provider not configured: {e}")
+        return []
     except Exception as e:
         logger.error(f"Error generating AI date ideas: {e}")
         return []
 
 def get_image_for_category(category: str) -> str:
-    """Get Unsplash image URL for category"""
+    """Get fallback image URL for category (when database doesn't have image)"""
     images = {
         "romantic": "https://images.unsplash.com/photo-1529636798458-92182e662485?w=800",
         "adventure": "https://images.unsplash.com/photo-1551632811-561732d1e306?w=800",
@@ -393,10 +595,8 @@ def get_image_for_category(category: str) -> str:
     return images.get(category, "https://images.unsplash.com/photo-1529636798458-92182e662485?w=800")
 
 async def fetch_trending_date_ideas() -> List[Dict[str, Any]]:
-    """Fetch trending date ideas from social media (simulated with AI)"""
-    if not GEMINI_API_KEY:
-        return []
-    
+    """Fetch trending date ideas using configured AI provider"""
+
     prompt = """Generate 5 trending date night ideas that are currently popular on Instagram, TikTok, and Facebook in 2026. Focus on viral date ideas and relationship trends.
 
 Return ONLY a valid JSON array with this structure (no markdown):
@@ -416,45 +616,25 @@ Return ONLY a valid JSON array with this structure (no markdown):
 ]"""
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.95,
-                        "topP": 0.95,
-                        "maxOutputTokens": 2048
-                    }
-                }
-            )
-            
-            if response.status_code != 200:
-                return []
-            
-            data = response.json()
-            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
-            
-            # Clean markdown
-            text = text.strip()
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-            
-            ideas = json.loads(text)
-            
-            for idea in ideas:
-                idea["id"] = str(uuid.uuid4())
-                idea["image_url"] = get_image_for_category(idea.get("category", "fun"))
-                idea["is_trending"] = True
-                idea["created_at"] = datetime.utcnow().isoformat()
-            
-            return ideas
-            
+        provider = get_ai_provider(current_ai_provider)
+        text = await provider.generate(prompt, temperature=0.95, max_tokens=2048)
+
+        # Clean markdown
+        text = clean_response_text(text)
+
+        ideas = json.loads(text)
+
+        for idea in ideas:
+            idea["id"] = str(uuid.uuid4())
+            idea["image_url"] = get_image_for_category(idea.get("category", "fun"))
+            idea["is_trending"] = True
+            idea["created_at"] = datetime.utcnow().isoformat()
+
+        return ideas
+
+    except ValueError as e:
+        logger.warning(f"AI provider not configured: {e}")
+        return []
     except Exception as e:
         logger.error(f"Error fetching trending ideas: {e}")
         return []
@@ -463,7 +643,7 @@ Return ONLY a valid JSON array with this structure (no markdown):
 
 @app.get("/")
 async def root():
-    return {"message": "bllue API", "version": "1.0.0", "status": "running"}
+    return {"message": "Arrow API", "version": "1.0.0", "status": "running"}
 
 @app.get("/api/health")
 async def health():
@@ -801,6 +981,128 @@ async def get_date_idea(idea_id: str):
     
     return idea
 
+# ==================== FEATURED IDEAS (Daily/Weekly) ====================
+
+@app.get("/api/date-ideas/daily")
+async def get_daily_idea():
+    """Get the featured date idea of the day.
+    Uses a deterministic pick based on today's date, or a manually featured idea if set."""
+    pool = await get_db()
+    today = datetime.utcnow().date()
+
+    async with pool.acquire() as conn:
+        # Check for manually featured daily idea
+        featured = await conn.fetchrow('''
+            SELECT di.* FROM featured_ideas fi
+            JOIN date_ideas di ON fi.date_idea_id = di.id
+            WHERE fi.feature_type = 'daily' AND fi.feature_date = $1
+        ''', today)
+
+        if featured:
+            idea = dict(featured)
+            idea['id'] = str(idea['id'])
+            idea['featured'] = True
+            idea['feature_type'] = 'daily'
+            return {"idea": idea, "date": str(today), "source": "curated_feature"}
+
+        # Auto-select: deterministic random based on date
+        count = await conn.fetchval("SELECT COUNT(*) FROM date_ideas")
+        if count == 0:
+            return {"idea": None, "date": str(today), "message": "No ideas available"}
+
+        day_seed = int(today.strftime("%Y%m%d"))
+        offset = day_seed % count
+
+        row = await conn.fetchrow(
+            "SELECT * FROM date_ideas ORDER BY created_at LIMIT 1 OFFSET $1", offset
+        )
+        idea = dict(row)
+        idea['id'] = str(idea['id'])
+        idea['featured'] = True
+        idea['feature_type'] = 'daily'
+        return {"idea": idea, "date": str(today), "source": "auto"}
+
+
+@app.get("/api/date-ideas/weekly")
+async def get_weekly_ideas():
+    """Get featured date ideas for the current week (up to 7, one per day)."""
+    pool = await get_db()
+    today = datetime.utcnow().date()
+    # Start of week (Monday)
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+
+    async with pool.acquire() as conn:
+        # Check for manually featured weekly idea
+        featured = await conn.fetchrow('''
+            SELECT di.* FROM featured_ideas fi
+            JOIN date_ideas di ON fi.date_idea_id = di.id
+            WHERE fi.feature_type = 'weekly' AND fi.feature_date = $1
+        ''', start_of_week)
+
+        if featured:
+            idea = dict(featured)
+            idea['id'] = str(idea['id'])
+            idea['featured'] = True
+            idea['feature_type'] = 'weekly'
+            return {"idea": idea, "week_start": str(start_of_week), "week_end": str(end_of_week), "source": "curated_feature"}
+
+        # Auto-select: deterministic based on week number
+        count = await conn.fetchval("SELECT COUNT(*) FROM date_ideas")
+        if count == 0:
+            return {"idea": None, "week_start": str(start_of_week), "message": "No ideas available"}
+
+        week_seed = int(start_of_week.strftime("%Y%m%d"))
+        offset = week_seed % count
+
+        row = await conn.fetchrow(
+            "SELECT * FROM date_ideas ORDER BY created_at LIMIT 1 OFFSET $1", offset
+        )
+        idea = dict(row)
+        idea['id'] = str(idea['id'])
+        idea['featured'] = True
+        idea['feature_type'] = 'weekly'
+        return {"idea": idea, "week_start": str(start_of_week), "week_end": str(end_of_week), "source": "auto"}
+
+
+@app.post("/api/date-ideas/feature")
+async def feature_idea(
+    date_idea_id: str,
+    feature_type: str = "daily",
+    feature_date: Optional[str] = None
+):
+    """Manually set a featured idea for a specific date or week.
+    feature_type: 'daily' or 'weekly'
+    feature_date: ISO date string (defaults to today)"""
+    pool = await get_db()
+
+    if feature_type not in ("daily", "weekly"):
+        raise HTTPException(status_code=400, detail="feature_type must be 'daily' or 'weekly'")
+
+    if feature_date:
+        try:
+            target_date = datetime.strptime(feature_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="feature_date must be YYYY-MM-DD")
+    else:
+        target_date = datetime.utcnow().date()
+
+    async with pool.acquire() as conn:
+        # Verify idea exists
+        idea = await conn.fetchrow("SELECT id FROM date_ideas WHERE id = $1", uuid.UUID(date_idea_id))
+        if not idea:
+            raise HTTPException(status_code=404, detail="Date idea not found")
+
+        # Upsert featured idea
+        await conn.execute('''
+            INSERT INTO featured_ideas (date_idea_id, feature_type, feature_date)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (feature_type, feature_date)
+            DO UPDATE SET date_idea_id = $1
+        ''', uuid.UUID(date_idea_id), feature_type, target_date)
+
+    return {"success": True, "message": f"Idea featured as {feature_type} for {target_date}"}
+
 # ==================== WISHLIST ====================
 
 @app.get("/api/wishlist")
@@ -915,6 +1217,357 @@ async def plan_date(
     
     return {"success": True, "event_id": str(event_id)}
 
+# ==================== OCCASIONS ====================
+
+@app.post("/api/occasions/add")
+async def add_occasion(data: OccasionCreate, user: TokenData = Depends(get_current_user)):
+    """Add a special occasion (birthday, anniversary, holiday, etc.)"""
+    pool = await get_db()
+
+    try:
+        # Parse the date string flexibly
+        parsed_date = parse_date_string(data.date)
+
+        occasion_id = uuid.uuid4()
+        user_id = uuid.UUID(user.user_id)
+
+        async with pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO occasions
+                    (id, user_id, person_name, occasion_type, date, reminder_days_before, notes, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+            ''', occasion_id, user_id, data.person_name, data.occasion_type,
+                parsed_date, data.reminder_days_before, data.notes)
+
+        return {
+            "success": True,
+            "message": "Occasion added successfully",
+            "occasion_id": str(occasion_id)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding occasion: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error adding occasion: {str(e)}")
+
+@app.get("/api/occasions")
+async def get_user_occasions(user: TokenData = Depends(get_current_user)):
+    """Get all occasions for current user"""
+    pool = await get_db()
+
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('''
+                SELECT
+                    id, user_id, person_name, occasion_type, date,
+                    reminder_days_before, notes, reminder_sent, created_at, updated_at
+                FROM occasions
+                WHERE user_id = $1
+                ORDER BY date ASC
+            ''', uuid.UUID(user.user_id))
+
+            occasions = []
+            for row in rows:
+                occasions.append({
+                    "id": str(row['id']),
+                    "user_id": str(row['user_id']),
+                    "person_name": row['person_name'],
+                    "occasion_type": row['occasion_type'],
+                    "date": row['date'].isoformat() if row['date'] else None,
+                    "reminder_days_before": row['reminder_days_before'],
+                    "notes": row['notes'],
+                    "reminder_sent": row['reminder_sent'],
+                    "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                    "updated_at": row['updated_at'].isoformat() if row['updated_at'] else None
+                })
+
+        return {"success": True, "occasions": occasions}
+
+    except Exception as e:
+        logger.error(f"Error getting occasions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting occasions: {str(e)}")
+
+@app.get("/api/occasions/upcoming")
+async def get_upcoming_occasions(days: int = 30, user: TokenData = Depends(get_current_user)):
+    """Get upcoming occasions in next N days"""
+    pool = await get_db()
+
+    try:
+        start_date = datetime.utcnow()
+        end_date = start_date + timedelta(days=days)
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('''
+                SELECT
+                    id, user_id, person_name, occasion_type, date,
+                    reminder_days_before, notes, reminder_sent, created_at, updated_at
+                FROM occasions
+                WHERE user_id = $1
+                  AND date >= $2
+                  AND date <= $3
+                ORDER BY date ASC
+            ''', uuid.UUID(user.user_id), start_date, end_date)
+
+            occasions = []
+            for row in rows:
+                occasions.append({
+                    "id": str(row['id']),
+                    "user_id": str(row['user_id']),
+                    "person_name": row['person_name'],
+                    "occasion_type": row['occasion_type'],
+                    "date": row['date'].isoformat() if row['date'] else None,
+                    "reminder_days_before": row['reminder_days_before'],
+                    "notes": row['notes'],
+                    "reminder_sent": row['reminder_sent'],
+                    "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                    "updated_at": row['updated_at'].isoformat() if row['updated_at'] else None
+                })
+
+        return {"success": True, "upcoming_occasions": occasions}
+
+    except Exception as e:
+        logger.error(f"Error getting upcoming occasions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting upcoming occasions: {str(e)}")
+
+@app.put("/api/occasions/{occasion_id}")
+async def update_occasion(occasion_id: str, data: OccasionUpdate, user: TokenData = Depends(get_current_user)):
+    """Update an occasion"""
+    pool = await get_db()
+
+    try:
+        occasion_uuid = uuid.UUID(occasion_id)
+        user_uuid = uuid.UUID(user.user_id)
+
+        # Build update query dynamically
+        updates = []
+        params = []
+        param_count = 0
+
+        if data.person_name is not None:
+            param_count += 1
+            updates.append(f"person_name = ${param_count}")
+            params.append(data.person_name)
+
+        if data.occasion_type is not None:
+            param_count += 1
+            updates.append(f"occasion_type = ${param_count}")
+            params.append(data.occasion_type)
+
+        if data.date is not None:
+            parsed_date = parse_date_string(data.date)
+            param_count += 1
+            updates.append(f"date = ${param_count}")
+            params.append(parsed_date)
+
+        if data.reminder_days_before is not None:
+            param_count += 1
+            updates.append(f"reminder_days_before = ${param_count}")
+            params.append(data.reminder_days_before)
+
+        if data.notes is not None:
+            param_count += 1
+            updates.append(f"notes = ${param_count}")
+            params.append(data.notes)
+
+        if not updates:
+            return {"success": True, "message": "No updates provided"}
+
+        # Add updated_at
+        param_count += 1
+        updates.append(f"updated_at = NOW()")
+
+        # Add WHERE clause
+        param_count += 1
+        where_clause = f"id = ${param_count} AND user_id = ${param_count + 1}"
+        params.append(occasion_uuid)
+        params.append(user_uuid)
+
+        query = f"UPDATE occasions SET {', '.join(updates)} WHERE {where_clause}"
+
+        async with pool.acquire() as conn:
+            result = await conn.execute(query, *params)
+
+        if "0" in str(result):  # No rows affected
+            raise HTTPException(status_code=404, detail="Occasion not found")
+
+        return {"success": True, "message": "Occasion updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating occasion: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating occasion: {str(e)}")
+
+@app.delete("/api/occasions/{occasion_id}")
+async def delete_occasion(occasion_id: str, user: TokenData = Depends(get_current_user)):
+    """Delete an occasion"""
+    pool = await get_db()
+
+    try:
+        occasion_uuid = uuid.UUID(occasion_id)
+        user_uuid = uuid.UUID(user.user_id)
+
+        async with pool.acquire() as conn:
+            result = await conn.execute('''
+                DELETE FROM occasions
+                WHERE id = $1 AND user_id = $2
+            ''', occasion_uuid, user_uuid)
+
+        if "0" in str(result):  # No rows affected
+            raise HTTPException(status_code=404, detail="Occasion not found")
+
+        return {"success": True, "message": "Occasion deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting occasion: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting occasion: {str(e)}")
+
+# ==================== IDEA INTERACTIONS (Accept/Reject Tracking) ====================
+
+class IdeaInteraction(BaseModel):
+    date_idea_id: Optional[str] = None
+    idea_title: Optional[str] = None  # For AI-generated ideas that may not be in DB
+
+@app.post("/api/ideas/accept")
+async def accept_idea(data: IdeaInteraction, user: TokenData = Depends(get_current_user)):
+    """Record that the user accepted/liked a date idea."""
+    pool = await get_db()
+    user_uuid = uuid.UUID(user.user_id)
+
+    idea_uuid = uuid.UUID(data.date_idea_id) if data.date_idea_id else None
+    title = data.idea_title or ""
+
+    # If we have an idea_id, fetch the title from DB
+    if idea_uuid and not title:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT title FROM date_ideas WHERE id = $1", idea_uuid)
+            if row:
+                title = row['title']
+
+    async with pool.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO idea_interactions (user_id, date_idea_id, idea_title, action)
+            VALUES ($1, $2, $3, 'accepted')
+            ON CONFLICT (user_id, date_idea_id)
+            DO UPDATE SET action = 'accepted', created_at = NOW()
+        ''', user_uuid, idea_uuid, title)
+
+    return {"success": True, "action": "accepted", "idea_title": title}
+
+
+@app.post("/api/ideas/reject")
+async def reject_idea(data: IdeaInteraction, user: TokenData = Depends(get_current_user)):
+    """Record that the user rejected/skipped a date idea."""
+    pool = await get_db()
+    user_uuid = uuid.UUID(user.user_id)
+
+    idea_uuid = uuid.UUID(data.date_idea_id) if data.date_idea_id else None
+    title = data.idea_title or ""
+
+    if idea_uuid and not title:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT title FROM date_ideas WHERE id = $1", idea_uuid)
+            if row:
+                title = row['title']
+
+    async with pool.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO idea_interactions (user_id, date_idea_id, idea_title, action)
+            VALUES ($1, $2, $3, 'rejected')
+            ON CONFLICT (user_id, date_idea_id)
+            DO UPDATE SET action = 'rejected', created_at = NOW()
+        ''', user_uuid, idea_uuid, title)
+
+    return {"success": True, "action": "rejected", "idea_title": title}
+
+
+@app.get("/api/ideas/interactions")
+async def get_user_interactions(
+    action: Optional[str] = None,
+    limit: int = 50,
+    user: TokenData = Depends(get_current_user)
+):
+    """Get the user's idea interaction history (accepts and rejects)."""
+    pool = await get_db()
+    user_uuid = uuid.UUID(user.user_id)
+
+    query = "SELECT * FROM idea_interactions WHERE user_id = $1"
+    params = [user_uuid]
+    param_count = 1
+
+    if action and action in ('accepted', 'rejected'):
+        param_count += 1
+        query += f" AND action = ${param_count}"
+        params.append(action)
+
+    param_count += 1
+    query += f" ORDER BY created_at DESC LIMIT ${param_count}"
+    params.append(limit)
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+        interactions = []
+        for row in rows:
+            item = dict(row)
+            item['id'] = str(item['id'])
+            item['user_id'] = str(item['user_id'])
+            if item.get('date_idea_id'):
+                item['date_idea_id'] = str(item['date_idea_id'])
+            interactions.append(item)
+
+    return {"interactions": interactions, "total": len(interactions)}
+
+
+@app.get("/api/ideas/stats")
+async def get_user_idea_stats(user: TokenData = Depends(get_current_user)):
+    """Get user's accept/reject stats — shows preference profile."""
+    pool = await get_db()
+    user_uuid = uuid.UUID(user.user_id)
+
+    async with pool.acquire() as conn:
+        accepted = await conn.fetchval(
+            "SELECT COUNT(*) FROM idea_interactions WHERE user_id = $1 AND action = 'accepted'",
+            user_uuid
+        )
+        rejected = await conn.fetchval(
+            "SELECT COUNT(*) FROM idea_interactions WHERE user_id = $1 AND action = 'rejected'",
+            user_uuid
+        )
+        total = accepted + rejected
+        acceptance_rate = round((accepted / total * 100), 1) if total > 0 else 0
+
+        # Top accepted categories
+        top_categories = await conn.fetch('''
+            SELECT di.category, COUNT(*) as count
+            FROM idea_interactions ii
+            JOIN date_ideas di ON ii.date_idea_id = di.id
+            WHERE ii.user_id = $1 AND ii.action = 'accepted'
+            GROUP BY di.category
+            ORDER BY count DESC
+            LIMIT 5
+        ''', user_uuid)
+
+        # Recently accepted ideas
+        recent_accepted = await conn.fetch('''
+            SELECT ii.idea_title, ii.created_at
+            FROM idea_interactions ii
+            WHERE ii.user_id = $1 AND ii.action = 'accepted'
+            ORDER BY ii.created_at DESC
+            LIMIT 5
+        ''', user_uuid)
+
+    return {
+        "accepted_count": accepted,
+        "rejected_count": rejected,
+        "total_interactions": total,
+        "acceptance_rate": acceptance_rate,
+        "top_categories": [{"category": r['category'], "count": r['count']} for r in top_categories],
+        "recent_accepted": [{"title": r['idea_title'], "date": r['created_at'].isoformat() if r['created_at'] else None} for r in recent_accepted]
+    }
+
 # ==================== PROFILE ====================
 
 @app.get("/api/profile")
@@ -972,6 +1625,381 @@ async def update_profile(data: ProfileUpdate, user: TokenData = Depends(get_curr
             await conn.execute(query, *params)
     
     return {"success": True, "message": "Profile updated"}
+
+# ==================== AI PROVIDER MANAGEMENT ====================
+
+class ProviderSwitchRequest(BaseModel):
+    """Request model for switching AI provider"""
+    provider: str = Field(..., description="Provider name: gemini, claude, or openai")
+
+
+@app.get("/api/ai/provider")
+async def get_current_provider():
+    """Get the current AI provider in use"""
+    return {
+        "current_provider": current_ai_provider,
+        "available_providers": get_available_providers(),
+        "description": f"Currently using {current_ai_provider.upper()} for AI generation"
+    }
+
+
+@app.get("/api/ai/providers")
+async def list_available_providers():
+    """List all available AI providers (those with API keys configured)"""
+    available = get_available_providers()
+    return {
+        "available_providers": available,
+        "count": len(available),
+        "configured": {
+            "gemini": bool(GEMINI_API_KEY),
+            "claude": bool(ANTHROPIC_API_KEY),
+            "openai": bool(OPENAI_API_KEY)
+        }
+    }
+
+
+@app.put("/api/ai/provider")
+async def switch_provider(request: ProviderSwitchRequest):
+    """Switch to a different AI provider at runtime
+
+    Args:
+        request: Contains 'provider' field with target provider name
+
+    Returns:
+        Confirmation of provider switch
+    """
+    global current_ai_provider
+
+    provider_name = request.provider.lower()
+    available = get_available_providers()
+
+    if provider_name not in available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Provider '{provider_name}' is not available. Available providers: {', '.join(available)}"
+        )
+
+    current_ai_provider = provider_name
+    logger.info(f"Switched AI provider to: {current_ai_provider}")
+
+    return {
+        "success": True,
+        "current_provider": current_ai_provider,
+        "message": f"Successfully switched to {current_ai_provider.upper()}"
+    }
+
+
+# ==================== SMART RECOMMENDATIONS ====================
+
+@app.get("/api/recommendations/smart")
+async def get_smart_recommendations(
+    mood: Optional[str] = None,
+    energy: Optional[str] = None,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    count: int = 5,
+    user: TokenData = Depends(get_current_user)
+):
+    """
+    Get personalized date ideas using the smart preference algorithm v2.
+
+    The algorithm analyzes:
+    - User's accept/reject history (with recency weighting)
+    - Temporal patterns (time-of-day, day-of-week preferences)
+    - Post-date journal ratings (feedback depth)
+    - Seasonal and anniversary awareness
+    - Budget pacing (monthly spend tracking)
+    - Freshness decay (suppress recently-done ideas)
+    - Current mood and energy level
+    - Current weather (if lat/lon provided)
+    - Partner compatibility (if user has a partner)
+    - Wildcard surprise injection
+
+    Args:
+        mood: Current mood ('adventurous', 'romantic', 'low_key', 'spontaneous', 'foodie', 'creative')
+        energy: Energy level ('low', 'medium', 'high')
+        lat: Latitude for weather lookup (optional)
+        lon: Longitude for weather lookup (optional)
+        count: Number of ideas to generate (default 5)
+        user: Current authenticated user
+
+    Returns:
+        List of AI-generated date ideas tailored to all contextual signals
+    """
+    try:
+        pool = await get_db()
+
+        # Validate mood
+        if mood and mood.lower() not in MOOD_OPTIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid mood. Choose from: {', '.join(MOOD_OPTIONS.keys())}"
+            )
+
+        # Validate energy
+        if energy and energy.lower() not in ENERGY_LEVELS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid energy level. Choose from: {', '.join(ENERGY_LEVELS.keys())}"
+            )
+
+        # Get weather if coordinates provided
+        weather = None
+        if lat is not None and lon is not None:
+            weather = await get_current_weather(lat, lon)
+
+        # Get partner ID if user has a partner
+        partner_id = None
+        async with pool.acquire() as conn:
+            partner_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE partner_name IS NOT NULL LIMIT 1"
+            )
+            if partner_row:
+                partner_id = str(partner_row['id'])
+
+        # Build smart prompt (v2 — includes all new signals)
+        smart_prompt = await build_smart_prompt(
+            user_id=user.user_id,
+            pool=pool,
+            partner_id=partner_id,
+            mood=mood,
+            energy=energy,
+            weather=weather
+        )
+
+        # Generate ideas using AI provider
+        provider = get_ai_provider(current_ai_provider)
+        text = await provider.generate(smart_prompt, temperature=0.9, max_tokens=2048)
+
+        # Clean and parse response
+        text = clean_response_text(text)
+        ideas = json.loads(text)
+
+        # Enrich ideas with metadata
+        for idea in ideas:
+            idea["id"] = str(uuid.uuid4())
+            idea["image_url"] = get_image_for_category(idea.get("category", "romantic"))
+            idea["is_trending"] = False
+            idea["created_at"] = datetime.utcnow().isoformat()
+            idea["algorithm"] = "smart_v2"
+            if mood:
+                idea["mood_context"] = mood
+            if energy:
+                idea["energy_context"] = energy
+
+        logger.info(f"Generated {len(ideas)} smart v2 recommendations for user {user.user_id}")
+        return {"ideas": ideas, "count": len(ideas), "algorithm": "smart_v2"}
+
+    except ValueError as e:
+        logger.error(f"AI provider error: {e}")
+        raise HTTPException(status_code=500, detail="AI provider not configured")
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse AI response: {e}")
+        raise HTTPException(status_code=500, detail="Failed to parse recommendations")
+    except Exception as e:
+        logger.error(f"Error generating smart recommendations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/preferences")
+async def get_user_preference_profile(user: TokenData = Depends(get_current_user)):
+    """
+    Get the user's computed preference profile from interaction history.
+
+    Analyzes the user's accept/reject interactions to return:
+    - Category affinities
+    - Budget distribution
+    - Location preferences
+    - Most-liked and most-rejected tags
+    - Acceptance rate and statistics
+    - Personality evolution insights
+
+    Returns:
+        Comprehensive preference analysis
+    """
+    try:
+        pool = await get_db()
+        preferences = await compute_user_preferences(user_id=user.user_id, pool=pool)
+
+        # Add user's stated personality for comparison
+        async with pool.acquire() as conn:
+            user_row = await conn.fetchrow(
+                "SELECT personality_type, interests, budget_range, indoor_outdoor_preference FROM users WHERE id = $1",
+                user.user_id
+            )
+            if user_row:
+                preferences["stated_personality"] = user_row.get('personality_type')
+                preferences["stated_interests"] = user_row.get('interests', [])
+
+        logger.info(f"Retrieved preference profile for user {user.user_id}")
+        return preferences
+
+    except Exception as e:
+        logger.error(f"Error computing preference profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/mood-options")
+async def get_mood_options():
+    """Get available mood options with descriptions."""
+    return {
+        "moods": MOOD_OPTIONS,
+        "description": "Select a mood to adjust recommendations accordingly"
+    }
+
+
+@app.get("/api/recommendations/energy-options")
+async def get_energy_options():
+    """Get available energy level options with descriptions."""
+    return {
+        "energy_levels": {k: v["description"] for k, v in ENERGY_LEVELS.items()},
+        "description": "Select an energy level to filter recommendations"
+    }
+
+
+@app.get("/api/recommendations/temporal")
+async def get_temporal_insights(user: TokenData = Depends(get_current_user)):
+    """Get the user's time-of-day and day-of-week preference patterns."""
+    try:
+        pool = await get_db()
+        temporal = await compute_temporal_preferences(user_id=user.user_id, pool=pool)
+        return temporal
+    except Exception as e:
+        logger.error(f"Error computing temporal preferences: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/feedback")
+async def get_feedback_insights(user: TokenData = Depends(get_current_user)):
+    """Get preference insights derived from post-date journal ratings."""
+    try:
+        pool = await get_db()
+        feedback = await compute_feedback_enhanced_preferences(user_id=user.user_id, pool=pool)
+        return feedback
+    except Exception as e:
+        logger.error(f"Error computing feedback preferences: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/seasonal")
+async def get_seasonal_insights(user: TokenData = Depends(get_current_user)):
+    """Get seasonal context and upcoming special dates / anniversaries."""
+    try:
+        pool = await get_db()
+        seasonal = get_seasonal_context()
+        anniversary = await get_anniversary_context(user_id=user.user_id, pool=pool)
+        return {**seasonal, **anniversary}
+    except Exception as e:
+        logger.error(f"Error computing seasonal context: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/budget")
+async def get_budget_insights(user: TokenData = Depends(get_current_user)):
+    """Get budget pacing and spending insights for the current month."""
+    try:
+        pool = await get_db()
+        budget = await compute_budget_context(user_id=user.user_id, pool=pool)
+        return budget
+    except Exception as e:
+        logger.error(f"Error computing budget context: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/freshness")
+async def get_freshness_insights(user: TokenData = Depends(get_current_user)):
+    """Get freshness decay data — recently done ideas and suppressed tags."""
+    try:
+        pool = await get_db()
+        freshness = await get_freshness_context(user_id=user.user_id, pool=pool)
+        return freshness
+    except Exception as e:
+        logger.error(f"Error computing freshness context: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/full-profile")
+async def get_full_algorithm_profile(user: TokenData = Depends(get_current_user)):
+    """
+    Get the COMPLETE algorithm profile — all signals combined.
+    Useful for debugging, admin view, or showing users their full preference DNA.
+    """
+    try:
+        pool = await get_db()
+
+        prefs = await compute_user_preferences(user_id=user.user_id, pool=pool)
+        temporal = await compute_temporal_preferences(user_id=user.user_id, pool=pool)
+        feedback = await compute_feedback_enhanced_preferences(user_id=user.user_id, pool=pool)
+        seasonal = get_seasonal_context()
+        anniversary = await get_anniversary_context(user_id=user.user_id, pool=pool)
+        budget = await compute_budget_context(user_id=user.user_id, pool=pool)
+        freshness = await get_freshness_context(user_id=user.user_id, pool=pool)
+
+        return {
+            "algorithm_version": "smart_v2",
+            "preferences": prefs,
+            "temporal_patterns": temporal,
+            "feedback_depth": feedback,
+            "seasonal_context": seasonal,
+            "anniversary_context": anniversary,
+            "budget_context": budget,
+            "freshness_context": freshness,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error computing full profile: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/recommendations/partner-compatibility")
+async def get_partner_compatibility(
+    partner_id: Optional[str] = None,
+    user: TokenData = Depends(get_current_user)
+):
+    """
+    Get couple compatibility analysis with the partner.
+
+    If partner_id not provided, attempts to find the user's partner
+    from their profile.
+
+    Args:
+        partner_id: UUID of partner (optional)
+        user: Current authenticated user
+
+    Returns:
+        Compatibility score and recommendations for couple activities
+    """
+    try:
+        pool = await get_db()
+
+        # If no partner_id provided, try to find from user's profile
+        if not partner_id:
+            async with pool.acquire() as conn:
+                user_row = await conn.fetchrow(
+                    "SELECT id FROM users WHERE partner_name IS NOT NULL LIMIT 1"
+                )
+                if not user_row:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No partner information found. Provide partner_id parameter."
+                    )
+                partner_id = str(user_row['id'])
+
+        # Compute compatibility
+        compatibility = await compute_partner_compatibility(
+            user_id=user.user_id,
+            partner_id=partner_id,
+            pool=pool
+        )
+
+        logger.info(f"Retrieved partner compatibility for user {user.user_id}")
+        return compatibility
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error computing partner compatibility: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== MAIN ====================
 

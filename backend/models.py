@@ -1,5 +1,5 @@
 """
-bllue Backend - Database Models
+Arrow Backend - Database Models
 PostgreSQL with SQLAlchemy Async
 """
 

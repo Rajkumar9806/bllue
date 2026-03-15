@@ -1,5 +1,5 @@
 """
-bllue Backend - Firebase Cloud Messaging Service
+Arrow Backend - Firebase Cloud Messaging Service
 Push Notifications
 """
 
@@ -76,7 +76,7 @@ async def send_push_notification(
                     icon="notification_icon",
                     color="#E04060",
                     sound="default",
-                    channel_id="bllue_notifications"
+                    channel_id="arrow_notifications"
                 )
             ),
             apns=messaging.APNSConfig(

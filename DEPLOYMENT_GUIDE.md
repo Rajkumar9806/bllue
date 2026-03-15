@@ -1,7 +1,7 @@
-# 🚀 bllue App - Production Deployment Guide
+# 🚀 Arrow App - Production Deployment Guide
 
 ## Overview
-This guide will help you deploy **bllue** to both the Apple App Store and Google Play Store.
+This guide will help you deploy **Arrow** to both the Apple App Store and Google Play Store.
 
 ---
 
@@ -31,20 +31,20 @@ This guide will help you deploy **bllue** to both the Apple App Store and Google
 ### 1.1 Create Firebase Project
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Click "Create a project"
-3. Name it: **bllue**
+3. Name it: **Arrow**
 4. Disable Google Analytics (optional) → Create Project
 
 ### 1.2 Add Android App
 1. Click "Add app" → Select Android
-2. Package name: `com.bllue.app`
-3. App nickname: **bllue**
+2. Package name: `com.arrow.app`
+3. App nickname: **Arrow**
 4. Download `google-services.json`
 5. **Place it in:** `/frontend/google-services.json`
 
 ### 1.3 Add iOS App
 1. Click "Add app" → Select iOS
-2. Bundle ID: `com.bllue.app`
-3. App nickname: **bllue**
+2. Bundle ID: `com.arrow.app`
+3. App nickname: **Arrow**
 4. Download `GoogleService-Info.plist`
 5. **Save it** - you'll need it for the iOS build
 
@@ -100,10 +100,10 @@ python seed_data.py
 1. Go to [App Store Connect](https://appstoreconnect.apple.com/)
 2. Create a new app:
    - Platform: iOS
-   - Name: **bllue**
+   - Name: **Arrow**
    - Primary Language: English
-   - Bundle ID: `com.bllue.app`
-   - SKU: `bllue-ios-v1`
+   - Bundle ID: `com.arrow.app`
+   - SKU: `Arrow-ios-v1`
 
 ---
 
@@ -117,7 +117,7 @@ python seed_data.py
 
 ### 4.2 Create App
 1. Click "Create app"
-2. App name: **bllue**
+2. App name: **Arrow**
 3. Default language: English
 4. App or game: App
 5. Free or paid: Free
@@ -202,9 +202,9 @@ Or use Transporter app on Mac:
 
 ### App Store / Play Store Description:
 ```
-bllue - Your Date Night Companion 💕
+Arrow - Your Date Night Companion 💕
 
-Never run out of date ideas again! bllue helps couples discover unique, personalized date experiences based on your interests, budget, and available time.
+Never run out of date ideas again! Arrow helps couples discover unique, personalized date experiences based on your interests, budget, and available time.
 
 Features:
 • 🎯 Personalized Recommendations - Date ideas tailored just for you
@@ -220,7 +220,7 @@ Categories include:
 - At-Home Dates
 - Budget-Friendly Options
 
-Download bllue and make every date special!
+Download Arrow and make every date special!
 ```
 
 ### Keywords:

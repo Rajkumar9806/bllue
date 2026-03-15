@@ -1,5 +1,5 @@
 """
-bllue Backend - Pydantic Schemas
+Arrow Backend - Pydantic Schemas
 Request/Response Models
 """
 
