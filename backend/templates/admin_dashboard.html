@@ -371,6 +371,64 @@
         </div>
     </div>
 
+    <!-- Edit Idea Modal -->
+    <div id="edit-idea-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-auto">
+            <div class="p-6 border-b">
+                <h3 class="text-xl font-semibold">Edit Date Idea</h3>
+            </div>
+            <form id="edit-idea-form" class="p-6 space-y-4">
+                <input type="hidden" name="id" id="edit-idea-id">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Title</label>
+                    <input type="text" name="title" id="edit-idea-title" required class="w-full border rounded-lg px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Description</label>
+                    <textarea name="description" id="edit-idea-description" rows="3" required class="w-full border rounded-lg px-3 py-2"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Category</label>
+                        <select name="category" id="edit-idea-category" required class="w-full border rounded-lg px-3 py-2">
+                            <option value="romantic">Romantic</option>
+                            <option value="adventure">Adventure</option>
+                            <option value="foodie">Foodie</option>
+                            <option value="cultural">Cultural</option>
+                            <option value="relaxing">Relaxing</option>
+                            <option value="fun">Fun</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="creative">Creative</option>
+                            <option value="meaningful">Meaningful</option>
+                            <option value="nightlife">Nightlife</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Budget</label>
+                        <select name="budget" id="edit-idea-budget" required class="w-full border rounded-lg px-3 py-2">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="free">Free</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Image URL</label>
+                    <input type="url" name="image_url" id="edit-idea-image" class="w-full border rounded-lg px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Location</label>
+                    <input type="text" name="location" id="edit-idea-location" placeholder="e.g., Downtown Nashville" class="w-full border rounded-lg px-3 py-2">
+                </div>
+                <div class="flex justify-end gap-3 pt-4">
+                    <button type="button" onclick="closeModal('edit-idea-modal')" class="px-4 py-2 border rounded-lg">Cancel</button>
+                    <button type="submit" class="btn-primary text-white px-4 py-2 rounded-lg">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-4 right-4 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300">
         <span id="toast-message"></span>
@@ -806,6 +864,50 @@
             showToast('Idea added!');
             closeModal('add-idea-modal');
             form.reset();
+            loadIdeas();
+        });
+
+        // Edit Idea
+        async function editIdea(id) {
+            try {
+                const idea = await api(`/admin/api/ideas/${id}`);
+                if (idea) {
+                    document.getElementById('edit-idea-id').value = idea.id;
+                    document.getElementById('edit-idea-title').value = idea.title || '';
+                    document.getElementById('edit-idea-description').value = idea.description || '';
+                    document.getElementById('edit-idea-category').value = idea.category || 'fun';
+                    document.getElementById('edit-idea-budget').value = idea.budget || 'medium';
+                    document.getElementById('edit-idea-image').value = idea.image_url || '';
+                    document.getElementById('edit-idea-location').value = idea.location || '';
+                    
+                    document.getElementById('edit-idea-modal').classList.remove('hidden');
+                    document.getElementById('edit-idea-modal').classList.add('flex');
+                }
+            } catch (err) {
+                showToast('Failed to load idea', 'error');
+            }
+        }
+
+        document.getElementById('edit-idea-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const id = document.getElementById('edit-idea-id').value;
+            const data = {
+                title: form.title.value,
+                description: form.description.value,
+                category: form.category.value,
+                budget: form.budget.value,
+                image_url: form.image_url.value,
+                location: form.location.value
+            };
+            
+            await api(`/admin/api/ideas/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            
+            showToast('Idea updated!');
+            closeModal('edit-idea-modal');
             loadIdeas();
         });
 

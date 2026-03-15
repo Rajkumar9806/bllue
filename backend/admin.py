@@ -1082,7 +1082,7 @@ async def create_idea(idea_data: Dict[str, Any] = Body(...)):
 
 @router.put("/api/ideas/{idea_id}")
 async def update_idea(idea_id: str, idea_data: Dict[str, Any] = Body(...)):
-    """Update a date idea"""
+    """Update a date idea - supports partial updates"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Database not initialized")
 
@@ -1091,19 +1091,22 @@ async def update_idea(idea_id: str, idea_data: Dict[str, Any] = Body(...)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid idea ID")
 
-    # Validate required fields
-    required_fields = ['title', 'description', 'category', 'budget', 'duration', 'location_type', 'image_url']
-    for field in required_fields:
-        if field not in idea_data or not idea_data[field]:
-            raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
-
-    tags = idea_data.get('tags', [])
-
     async with db_pool.acquire() as conn:
-        # Check if idea exists
-        existing = await conn.fetchrow("SELECT id FROM date_ideas WHERE id = $1", idea_uuid)
+        # Check if idea exists and get current data
+        existing = await conn.fetchrow("SELECT * FROM date_ideas WHERE id = $1", idea_uuid)
         if not existing:
             raise HTTPException(status_code=404, detail="Idea not found")
+
+        # Merge with existing data - only update fields that are provided
+        title = idea_data.get('title', existing['title'])
+        description = idea_data.get('description', existing['description'])
+        category = idea_data.get('category', existing['category'])
+        budget = idea_data.get('budget', existing['budget'])
+        duration = idea_data.get('duration', existing.get('duration', ''))
+        location_type = idea_data.get('location_type', existing.get('location_type', 'both'))
+        image_url = idea_data.get('image_url', existing.get('image_url', ''))
+        tags = idea_data.get('tags', existing.get('tags', []))
+        location = idea_data.get('location', existing.get('location', ''))
 
         try:
             await conn.execute('''
@@ -1112,9 +1115,8 @@ async def update_idea(idea_id: str, idea_data: Dict[str, Any] = Body(...)):
                     duration = $5, location_type = $6, image_url = $7, tags = $8,
                     updated_at = NOW(), updated_by = $9
                 WHERE id = $10
-            ''', idea_data['title'], idea_data['description'], idea_data['category'],
-               idea_data['budget'], idea_data['duration'], idea_data['location_type'],
-               idea_data['image_url'], tags, 'admin_dashboard', idea_uuid)
+            ''', title, description, category, budget, duration, location_type,
+               image_url, tags, 'admin_dashboard', idea_uuid)
 
             return {
                 "success": True,
