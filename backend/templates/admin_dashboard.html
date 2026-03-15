@@ -791,10 +791,7 @@
 
         async function installPack(packId) {
             showToast('Installing pack...');
-            await api('/admin/seeder/install-pack', { 
-                method: 'POST',
-                body: JSON.stringify({ pack_name: packId })
-            });
+            await api(`/admin/seeder/install-pack?pack_name=${packId}`, { method: 'POST' });
             showToast('Pack installed!');
             loadSeeder();
             loadOverview();
